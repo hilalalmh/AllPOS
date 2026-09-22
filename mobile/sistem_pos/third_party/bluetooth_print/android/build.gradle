@@ -1,0 +1,22 @@
+group 'com.example.bluetooth_print'
+version '1.0'
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.example.bluetooth_print'
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 21
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    lint {
+        disable 'InvalidPackage'
+    }
+}
+
+dependencies {
+    implementation files('libs/gprintersdkv2.jar')
+    implementation "androidx.core:core:1.6.0"
+}

@@ -1,0 +1,34 @@
+# Environment / secrets
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Flutter
+mobile/**/build/
+mobile/**/.dart_tool/
+mobile/**/.flutter-plugins
+mobile/**/.flutter-plugins-dependencies
+mobile/**/android/local.properties
+mobile/**/android/.gradle/
+mobile/**/*.iml
+mobile/**/.idea/
+mobile/**/.metadata
+
+# IDE / OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+
+# Database local
+*.sqlite3

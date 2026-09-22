@@ -1,0 +1,151 @@
+from decimal import Decimal
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.deps import get_current_user, require_roles
+from app.core.storage import delete_image, save_image
+from app.models import RoleEnum
+from app.schemas.product import (
+    ProductCreate,
+    ProductList,
+    ProductOut,
+    ProductUpdate,
+)
+from app.services.product_service import (
+    DuplicateSkuError,
+    ProductNotFoundError,
+    ProductService,
+)
+
+router = APIRouter(prefix="/products", tags=["products"])
+
+
+def _get_service(db: Session = Depends(get_db)) -> ProductService:
+    return ProductService(db)
+
+
+def _handle_service_error(exc: Exception) -> None:
+    if isinstance(exc, ProductNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, DuplicateSkuError):
+        raise HTTPException(status_code=409, detail=str(exc))
+    raise exc
+
+
+def _raise(exc: Exception) -> None:
+    _handle_service_error(exc)
+    raise exc
+
+
+@router.get("", response_model=ProductList)
+def list_products(
+    q: str | None = Query(default=None, max_length=100),
+    category_id: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    service: ProductService = Depends(_get_service),
+    _: object = Depends(get_current_user),
+):
+    items, total = service.list_products(
+        q=q,
+        category_id=category_id,
+        include_inactive=False,
+        page=page,
+        page_size=page_size,
+    )
+    return ProductList(
+        items=items, total=total, page=page, page_size=page_size
+    )
+
+
+@router.get("/{product_id}", response_model=ProductOut)
+def get_product(
+    product_id: int,
+    service: ProductService = Depends(_get_service),
+    _: object = Depends(get_current_user),
+):
+    product = service.get_product(product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Produk tidak ditemukan."
+        )
+    return product
+
+
+@router.post(
+    "",
+    response_model=ProductOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_product(
+    category_id: int = Form(...),
+    name: str = Form(..., min_length=1, max_length=100),
+    description: str | None = Form(default=None),
+    sku: str | None = Form(default=None, max_length=50),
+    price: float = Form(..., gt=0),
+    is_active: bool = Form(default=True),
+    image: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+    _: object = Depends(require_roles(RoleEnum.OWNER)),
+):
+    image_url = None
+    if image is not None:
+        image_url = save_image(image)
+
+    service = ProductService(db)
+    payload = ProductCreate(
+        category_id=category_id,
+        name=name,
+        description=description,
+        sku=sku,
+        price=Decimal(str(price)),
+        image_url=image_url,
+        is_active=is_active,
+    )
+    try:
+        product = service.create_product(payload)
+    except Exception as exc:
+        if image_url:
+            delete_image(image_url)
+        _raise(exc)
+    return product
+
+
+@router.put("/{product_id}", response_model=ProductOut)
+def update_product(
+    product_id: int,
+    payload: ProductUpdate,
+    service: ProductService = Depends(_get_service),
+    _: object = Depends(require_roles(RoleEnum.OWNER)),
+):
+    try:
+        product = service.update_product(product_id, payload)
+    except Exception as exc:
+        _raise(exc)
+    return product
+
+
+@router.delete(
+    "/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_product(
+    product_id: int,
+    service: ProductService = Depends(_get_service),
+    _: object = Depends(require_roles(RoleEnum.OWNER)),
+):
+    try:
+        service.delete_product(product_id)
+    except Exception as exc:
+        _raise(exc)

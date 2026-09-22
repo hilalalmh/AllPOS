@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Test / runtime
+.pytest_cache/
+uploads/
+
+# Database
+*.sqlite3

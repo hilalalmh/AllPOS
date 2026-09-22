@@ -1,0 +1,28 @@
+name: sistem_pos
+description: "Aplikasi kasir (POS) berbasis Flutter untuk coffee shop."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  shared_preferences: ^2.5.5
+  flutter_riverpod: 2.6.1
+  bluetooth_print: ^4.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  bluetooth_print:
+    path: third_party/bluetooth_print
+
+flutter:
+  uses-material-design: true

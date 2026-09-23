@@ -26,12 +26,9 @@ export default function StoreProfilePage() {
   }, [load]);
 
   useEffect(() => {
-    setSuccess(null);
-    setSaveError(null);
-  }, [profile]);
-
-  useEffect(() => {
     if (profile) {
+      // Jangan reset pesan sukses di sini: profil akan berubah tepat setelah
+      // penyimpanan sehingga pesan "berhasil disimpan" langsung terhapus.
       setForm({
         store_name: profile.store_name,
         address: profile.address ?? "",

@@ -60,9 +60,7 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                result.isOffline
-                    ? 'Disimpan Offline'
-                    : 'Pembayaran Berhasil',
+                result.isOffline ? 'Disimpan Offline' : 'Pembayaran Berhasil',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -124,7 +122,11 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                     ? null
                     : () async {
                         await _print();
-                        if (mounted) setState(() => _printed = true);
+                        final err = ref.read(printerNotifierProvider).lastError;
+                        // Tandai tercetak hanya bila tidak ada error printer.
+                        if (mounted && err == null) {
+                          setState(() => _printed = true);
+                        }
                       },
                 icon: printer.busy
                     ? const SizedBox(

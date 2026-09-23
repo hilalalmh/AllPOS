@@ -95,7 +95,7 @@ def get_product(
     response_model=ProductOut,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_product(
+def create_product(
     category_id: int = Form(...),
     name: str = Form(..., min_length=1, max_length=100),
     description: str | None = Form(default=None),
@@ -106,21 +106,23 @@ async def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(RoleEnum.OWNER)),
 ):
-    image_url = None
-    if image is not None:
-        image_url = save_image(image)
-
+    # Route sinkron agar file I/O tidak memblokir event loop; penyimpanan
+    # gambar + konstruksi payload berada dalam try sehingga gambar yang
+    # tersimpan tidak jadi yatim bila validasi/insert gagal.
     service = ProductService(db)
-    payload = ProductCreate(
-        category_id=category_id,
-        name=name,
-        description=description,
-        sku=sku,
-        price=Decimal(str(price)),
-        image_url=image_url,
-        is_active=is_active,
-    )
+    image_url = None
     try:
+        if image is not None:
+            image_url = save_image(image)
+        payload = ProductCreate(
+            category_id=category_id,
+            name=name,
+            description=description,
+            sku=sku,
+            price=Decimal(str(price)),
+            image_url=image_url,
+            is_active=is_active,
+        )
         product = service.create_product(payload)
     except Exception as exc:
         if image_url:

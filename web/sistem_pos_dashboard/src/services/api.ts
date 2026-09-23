@@ -6,6 +6,7 @@ import axios, {
 import {
   clearAuth,
   getAccessToken,
+  getAuthGeneration,
   getRefreshToken,
   setTokens,
 } from "../utils/token";
@@ -31,15 +32,38 @@ interface RetryableConfig extends InternalAxiosRequestConfig {
 // agar tidak terjadi refresh token race / token berubah di tengah jalan.
 let refreshPromise: Promise<{ access: string; refresh: string }> | null = null;
 
-function refreshTokens(refreshToken: string) {
+// Notifikasi "auth-expired" cukup sekali per sesi (direset saat login/logout)
+// agar banyak request 401 yang berbarengan tidak men-dispatch berulang kali.
+let authExpiredDispatched = false;
+
+/** Reset state refresh + flag notifikasi. Panggil saat login/logout. */
+export function resetAuthRefreshState(): void {
+  refreshPromise = null;
+  authExpiredDispatched = false;
+}
+
+function notifyAuthExpired(): void {
+  if (authExpiredDispatched) return;
+  authExpiredDispatched = true;
+  window.dispatchEvent(new Event("auth-expired"));
+}
+
+function refreshTokens(refresh: { token: string; authGeneration: number }) {
   if (!refreshPromise) {
     refreshPromise = axios
       .post<{ access_token: string; refresh_token: string }>(
         "/api/v1/auth/refresh",
-        { refresh_token: refreshToken }
+        { refresh_token: refresh.token }
       )
       .then((res) => {
         const { access_token, refresh_token } = res.data;
+        // Refresh yang mulai di generasi sesi LAMA (mis. sebelum login ulang)
+        // dibuang: hasilnya tidak boleh menimpali token sesi yang lebih baru.
+        if (getAuthGeneration() !== refresh.authGeneration) {
+          throw Object.assign(new Error("stale refresh"), {
+            stale: true,
+          } as { stale: boolean });
+        }
         setTokens(access_token, refresh_token);
         return { access: access_token, refresh: refresh_token };
       })
@@ -70,18 +94,26 @@ apiClient.interceptors.response.use(
       // Tanpa refresh token, sesi memang sudah habis — kabari UI agar
       // "login palsu" tidak menampilkan layar yang terlihat masuk.
       clearAuth();
-      window.dispatchEvent(new Event("auth-expired"));
+      notifyAuthExpired();
       return Promise.reject(error);
     }
 
     try {
-      const tokens = await refreshTokens(refreshToken);
+      const tokens = await refreshTokens({
+        token: refreshToken,
+        authGeneration: getAuthGeneration(),
+      });
       // Retry aman hanya untuk request idempotent atau pembuatan transaksi
       // (dilindungi local_ref di sisi server). Request POST lain tidak boleh
       // diulang otomatis agar efek samping tidak berlipat.
       const method = (config.method ?? "get").toUpperCase();
       const isIdempotent =
-        method === "GET" || method === "HEAD" || method === "OPTIONS";
+        method === "GET" ||
+        method === "HEAD" ||
+        method === "OPTIONS" ||
+        method === "PUT" ||
+        method === "PATCH" ||
+        method === "DELETE";
       const isTxCreate = method === "POST" && url.includes("/transactions");
       if (!isIdempotent && !isTxCreate) {
         return Promise.reject(error);
@@ -89,9 +121,14 @@ apiClient.interceptors.response.use(
       config._retry = true;
       config.headers.Authorization = `Bearer ${tokens.access}`;
       return apiClient(config);
-    } catch {
-      clearAuth();
-      window.dispatchEvent(new Event("auth-expired"));
+    } catch (refreshErr) {
+      // Logout paksa HANYA bila refresh benar-benar ditolak (HTTP 401,
+      // token invalid). Gangguan jaringan/5xx bukan akhir sesi — pengguna
+      // tidak boleh kehilangan login karena koneksi yang bermasalah.
+      if ((refreshErr as AxiosError)?.response?.status === 401) {
+        clearAuth();
+        notifyAuthExpired();
+      }
       return Promise.reject(error);
     }
   }

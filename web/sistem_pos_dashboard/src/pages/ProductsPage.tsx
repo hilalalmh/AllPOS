@@ -47,6 +47,7 @@ export default function ProductsPage() {
   const debouncedQ = useDebouncedValue(q);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const seqRef = useRef(0);
 
   const [editId, setEditId] = useState<number | null>(null);
@@ -87,9 +88,17 @@ export default function ProductsPage() {
 
   useEffect(() => {
     void load();
+    // Error memuat kategori tidak boleh ditelan diam-diam: tanpa daftar
+    // kategori, produk tidak bisa dikategorikan/dibuat.
     void fetchCategories()
-      .then(setCategories)
-      .catch(() => undefined);
+      .then((cs) => {
+        setCategories(cs);
+        setCategoriesError(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        setCategoriesError("Gagal memuat daftar kategori.");
+      });
   }, [load]);
 
   if (user?.role !== "OWNER") {
@@ -198,6 +207,7 @@ export default function ProductsPage() {
       </div>
 
       {error && <ErrorAlert message={error} />}
+      {categoriesError && <ErrorAlert message={categoriesError} />}
 
       {loading ? (
         <Spinner />
@@ -315,16 +325,19 @@ export default function ProductsPage() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Kategori
+              Kategori *
             </label>
             <select
               value={form.category_id}
               onChange={(e) =>
                 setForm({ ...form, category_id: Number(e.target.value) })
               }
+              required
               className="w-full rounded-md border border-gray-300 px-3 py-2"
             >
-              <option value={0}>Pilih kategori...</option>
+              <option value={0} disabled>
+                Pilih kategori...
+              </option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

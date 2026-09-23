@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import hash_password, verify_password
 from app.models import Role, RoleEnum, User
-from app.services.auth_service import create_user
+from app.services.auth_service import AuthService, create_user
 
 
 class UserNotFoundError(Exception):
@@ -83,8 +83,17 @@ class UserService:
         user = self.get_user(user_id)
         data = payload.model_dump(exclude_unset=True)
 
+        # Kunci baris OWNER SEBELUM mutasi bila perubahan bisa menyentuh jumlah
+        # OWNER aktif. Dapatkan lock dalam satu perintah deterministik agar dua
+        # transaksi tidak saling menunggu lock yang berlawanan (deadlock).
+        if data.get("role") is not None or data.get("is_active") is not None:
+            self._lock_owner_rows()
+
         if data.get("password"):
             user.password_hash = hash_password(data["password"])
+            # Ganti password = cabut semua sesi lama (refresh token lama tidak
+            # lagi valid), termasuk di perangkat lain.
+            AuthService(self.db).revoke_all_for_user(user.id)
         data.pop("password", None)
 
         if data.get("full_name"):
@@ -123,24 +132,31 @@ class UserService:
             raise
         return user
 
-    def _ensure_owner_remaining(self, user: User) -> None:
-        """Pastikan selalu ada minimal satu OWNER aktif setelah perubahan.
+    def _lock_owner_rows(self) -> list[int]:
+        """SELECT … FOR UPDATE semua baris OWNER aktif.
 
-        SELECT … FOR UPDATE mengunci baris OWNER sehingga dua proses yang
-        menurunkan role/nonaktifkan OWNER tidak bisa melewati guard secara
-        bersamaan (transaksi kedua menunggu dan melihat hasil commit yang baru).
+        Dipanggil di awal update() sebelum mutasi sukses diaplikasikan agar
+        dua proses yang menurunkan role/nonaktifkan OWNER dijalankan serial
+        (transaksi kedua menunggu dan melihat hasil commit yang baru) tanpa
+        risiko deadlock akibat urutan lock yang saling berlawanan.
         """
         owner_role_id = self.db.scalar(
             select(Role.id).where(Role.name == RoleEnum.OWNER.value)
         )
-        owner_ids = self.db.scalars(
-            select(User.id)
-            .where(
-                User.role_id == owner_role_id,
-                User.is_active.is_(True),
-            )
-            .with_for_update()
-        ).all()
+        return list(
+            self.db.scalars(
+                select(User.id)
+                .where(
+                    User.role_id == owner_role_id,
+                    User.is_active.is_(True),
+                )
+                .with_for_update()
+            ).all()
+        )
+
+    def _ensure_owner_remaining(self, user: User) -> None:
+        """Pastikan selalu ada minimal satu OWNER aktif setelah perubahan."""
+        owner_ids = self._lock_owner_rows()
         if not owner_ids:
             raise LastOwnerError(
                 "Harus selalu ada minimal satu OWNER yang aktif."
@@ -155,4 +171,7 @@ class UserService:
                 detail="Password saat ini salah.",
             )
         user.password_hash = hash_password(new_password)
+        # Sesi lama di perangkat lain dicabut; hanya access token saat ini
+        # yang tetap berlaku hingga kedaluwarsa.
+        AuthService(self.db).revoke_all_for_user(user.id)
         self.db.flush()

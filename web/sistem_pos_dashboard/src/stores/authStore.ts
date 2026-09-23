@@ -1,8 +1,10 @@
 import { create } from "zustand";
 
 import { login as apiLogin, fetchMe, logoutRemote } from "../services/auth";
+import { resetAuthRefreshState } from "../services/api";
 import type { UserMe } from "../types";
 import {
+  bumpAuthGeneration,
   clearAuth,
   getAccessToken,
   getRefreshToken,
@@ -28,8 +30,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   booting: true,
 
   login: async (username, password) => {
-    // Buka kembali penulisan token (setelah logout sebelumnya menguncinya).
+    // Buka kembali penulisan token (setelah logout sebelumnya menguncinya) dan
+    // naikkan generasi sesi + reset refresh single-flight agar hasil refresh
+    // sesi lama yang masih melayang tidak menimpali token login yang baru.
     unlockRefreshTokenWrites();
+    bumpAuthGeneration();
+    resetAuthRefreshState();
     const res = await apiLogin(username, password);
     setTokens(res.access_token, res.refresh_token);
     try {
@@ -67,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Kunci penulisan token dulu: refresh yang sedang berjalan (dari request
     // 401) tidak boleh mengembalikan token baru setelah clearAuth.
     lockRefreshTokenWrites();
+    resetAuthRefreshState();
     const refresh = getRefreshToken();
     if (refresh) {
       void logoutRemote(refresh).catch(() => {

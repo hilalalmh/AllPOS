@@ -28,7 +28,7 @@ class ApiClient {
   final String? Function()? tokenProvider;
   final String? Function()? refreshTokenProvider;
   final Future<void> Function(String accessToken, String refreshToken)?
-      onTokensSaved;
+  onTokensSaved;
   final Future<void> Function()? onAuthExpired;
   final Duration timeout;
 
@@ -36,7 +36,8 @@ class ApiClient {
 
   Future<dynamic> get(String path) => _send('GET', path);
 
-  Future<dynamic> post(String path, [Object? body]) => _send('POST', path, body);
+  Future<dynamic> post(String path, [Object? body]) =>
+      _send('POST', path, body);
 
   Future<dynamic> put(String path, [Object? body]) => _send('PUT', path, body);
 
@@ -62,7 +63,8 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $token';
     }
     final refreshToken = refreshTokenProvider?.call();
-    final hadSession = (refreshToken?.isNotEmpty ?? false) || (token?.isNotEmpty ?? false);
+    final hadSession =
+        (refreshToken?.isNotEmpty ?? false) || (token?.isNotEmpty ?? false);
 
     late http.Response response;
     try {
@@ -74,16 +76,26 @@ class ApiClient {
     }
     final data = _decode(response);
 
-    if (response.statusCode == 401 && !retried && await _refresh()) {
+    // Endpoint auth tidak memakai sesi yang sama: jangan coba refresh dan
+    // jangan perlakukan 401 login (password salah) sebagai sesi berakhir.
+    final isAuthEndpoint = path.contains('/api/v1/auth/');
+
+    if (response.statusCode == 401 &&
+        !retried &&
+        !isAuthEndpoint &&
+        await _refresh()) {
       return _sendWithRetry(method, path, body, retried: true);
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      if (response.statusCode == 401 && hadSession) {
+      if (response.statusCode == 401 && hadSession && !isAuthEndpoint) {
         await onAuthExpired?.call();
         throw const ApiException(401, 'Sesi berakhir. Silakan masuk kembali.');
       }
-      throw ApiException(response.statusCode, _errorMessage(data, response.statusCode));
+      throw ApiException(
+        response.statusCode,
+        _errorMessage(data, response.statusCode),
+      );
     }
     return data;
   }
@@ -159,7 +171,8 @@ class ApiClient {
 
   dynamic _decode(http.Response response) {
     if (response.body.isEmpty) return null;
-    if (response.headers['content-type']?.contains('application/json') ?? false) {
+    if (response.headers['content-type']?.contains('application/json') ??
+        false) {
       return jsonDecode(utf8.decode(response.bodyBytes));
     }
     return utf8.decode(response.bodyBytes);

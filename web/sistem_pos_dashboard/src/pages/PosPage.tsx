@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { AxiosError } from "axios";
 
 import { ErrorAlert, Modal, Spinner } from "../components/ui";
 import { fetchCategories } from "../services/categories";
@@ -110,9 +111,11 @@ export default function PosPage() {
     () => cart.reduce((sum, line) => sum + line.product.price * line.quantity, 0),
     [cart]
   );
-  const discountValue = round2(Number(discount) || 0);
+  // Clamp non-negatif: diskon/uang dibayar negatif (hasil input `-5`) tidak
+  // boleh menambah total atau meloloskan pembayaran absur.
+  const discountValue = Math.max(round2(Number(discount) || 0), 0);
   const total = Math.max(round2(subtotal - discountValue), 0);
-  const paidValue = round2(Number(paid) || 0);
+  const paidValue = Math.max(round2(Number(paid) || 0), 0);
   const change = round2(paidValue - total);
 
   function addToCart(product: Product) {
@@ -144,7 +147,7 @@ export default function PosPage() {
   function canSubmit() {
     return (
       cart.length > 0 &&
-      total > 0 &&
+      // total 0 (diskon 100%) tetap sah dibayar — server memvalidasi lagi.
       paidValue >= total &&
       discountValue <= subtotal &&
       !submitting
@@ -173,7 +176,12 @@ export default function PosPage() {
       setResult(tx);
     } catch (err) {
       console.error(err);
-      setError("Transaksi gagal diproses.");
+      const detail = (
+        err as AxiosError & {
+          response?: { data?: { detail?: string } };
+        }
+      )?.response?.data?.detail;
+      setError(detail ?? "Transaksi gagal diproses.");
     } finally {
       setSubmitting(false);
     }

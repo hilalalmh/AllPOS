@@ -11,7 +11,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final sessionStore = SessionStore(prefs);
-  await sessionStore.init();
+  try {
+    await sessionStore.init();
+  } catch (_) {
+    // flutter_secure_storage tidak tersedia (mis. web HTTP atau platform
+    // tanpa Keystore/Keychain): degradasi ke sesi kosong agar app tetap
+    // boot ke halaman login alih-alih layar mati. Hapus user yang sempat
+    // tersimpan di prefs agar tidak terlihat sudah login.
+    prefs.remove('session.user');
+  }
   runApp(
     ProviderScope(
       overrides: [

@@ -6,8 +6,22 @@ const USER_KEY = "pos_user";
 // (hasil rotasi) setelah clearAuth — kalau tidak, sesi "kembali hidup" diam-diam.
 let writesLocked = false;
 
+// Penghitung generasi sesi: naik setiap clearAuth/login agar hasil refresh
+// dari sesi LAMA (yang masih melayang) dibuang dan tidak menimpali token
+// sesi BARU setelah pengguna login ulang.
+let authGeneration = 0;
+
+export function bumpAuthGeneration(): void {
+  authGeneration += 1;
+}
+
+export function getAuthGeneration(): number {
+  return authGeneration;
+}
+
 export function lockRefreshTokenWrites(): void {
   writesLocked = true;
+  bumpAuthGeneration();
 }
 
 export function unlockRefreshTokenWrites(): void {
@@ -46,6 +60,7 @@ export function clearAuth(): void {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
+  bumpAuthGeneration();
 }
 
 export function isAuthenticated(): boolean {

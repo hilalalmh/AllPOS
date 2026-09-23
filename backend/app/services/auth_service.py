@@ -82,21 +82,37 @@ class AuthService:
         except (KeyError, TypeError, ValueError):
             raise InvalidRefreshTokenError("Refresh token tidak valid.")
 
-        record = (
-            self.db.query(RefreshToken).filter_by(jti=jti).one_or_none()
-        )
-        if record is None or record.revoked:
-            raise InvalidRefreshTokenError("Refresh token tidak valid.")
-        if record.user_id != user_id:
-            raise InvalidRefreshTokenError("Refresh token tidak valid.")
-
         user = self.users.get(user_id)
         if user is None or not user.is_active:
             raise InvalidRefreshTokenError("Refresh token tidak valid.")
 
-        # Rotasi: token lama langsung dicabut, token baru diterbitkan.
-        record.revoked = True
+        # Rotasi atomik: UPDATE dengan filter revoked=False memberi row count 1
+        # hanya untuk pemenang perlombaan. Refresh bersamaan dengan token sama
+        # akan mendapat rowcount 0 dan ditolak, sehingga token lama tak bisa
+        # dipakai dua kali (replay).
+        rotated = (
+            self.db.query(RefreshToken)
+            .filter(
+                RefreshToken.jti == jti,
+                RefreshToken.user_id == user_id,
+                RefreshToken.revoked.is_(False),
+            )
+            .update({"revoked": True}, synchronize_session=False)
+        )
+        if rotated != 1:
+            raise InvalidRefreshTokenError("Refresh token tidak valid.")
         return self.issue_tokens(user)
+
+    def revoke_all_for_user(self, user_id: int) -> int:
+        """Cabut semua refresh token milik user (mis. saat ganti password)."""
+        return (
+            self.db.query(RefreshToken)
+            .filter(
+                RefreshToken.user_id == user_id,
+                RefreshToken.revoked.is_(False),
+            )
+            .update({"revoked": True}, synchronize_session=False)
+        )
 
     def revoke(self, refresh_token: str) -> bool:
         """Cabut refresh token bila dikenali (idempoten)."""

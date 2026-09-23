@@ -90,10 +90,11 @@ class TransactionService:
         change = paid - total
 
         if payload.local_ref is not None:
+            # local_ref dibuat unik global (index UNIQUE); dedup tidak diskoping
+            # per-kasir agar 409 antar-kasir yang ref-nya bentrok tidak membingungkan.
             existing = self.db.scalar(
                 select(Transaction).where(
                     Transaction.local_ref == payload.local_ref,
-                    Transaction.cashier_id == cashier.id,
                 )
             )
             if existing is not None:
@@ -120,7 +121,6 @@ class TransactionService:
                     existing = self.db.scalar(
                         select(Transaction).where(
                             Transaction.local_ref == payload.local_ref,
-                            Transaction.cashier_id == cashier.id,
                         )
                     )
                     if existing is not None:

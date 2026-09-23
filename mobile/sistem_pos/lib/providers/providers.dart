@@ -77,7 +77,8 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo, this._ref) : super(AuthState(user: _repo.store.user)) {
+  AuthNotifier(this._repo, this._ref)
+    : super(AuthState(user: _repo.store.user)) {
     _expiredSub = _ref
         .read(authExpiredEventsProvider)
         .stream
@@ -121,7 +122,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((
+  ref,
+) {
   return AuthNotifier(ref.watch(authRepositoryProvider), ref);
 });
 
@@ -169,21 +172,18 @@ class SyncState {
     int? lastSynced,
     int? lastFailed,
     Object? error = _unset,
-  }) =>
-      SyncState(
-        pending: pending ?? this.pending,
-        syncing: syncing ?? this.syncing,
-        lastSynced: lastSynced ?? this.lastSynced,
-        lastFailed: lastFailed ?? this.lastFailed,
-        error: identical(error, _unset) ? this.error : error as String?,
-      );
+  }) => SyncState(
+    pending: pending ?? this.pending,
+    syncing: syncing ?? this.syncing,
+    lastSynced: lastSynced ?? this.lastSynced,
+    lastFailed: lastFailed ?? this.lastFailed,
+    error: identical(error, _unset) ? this.error : error as String?,
+  );
 }
 
 class SyncNotifier extends StateNotifier<SyncState> {
-  SyncNotifier({
-    required this.transactionSyncService,
-    required this.ref,
-  }) : super(const SyncState());
+  SyncNotifier({required this.transactionSyncService, required this.ref})
+    : super(const SyncState());
 
   final TransactionSyncService transactionSyncService;
   final Ref ref;
@@ -195,15 +195,18 @@ class SyncNotifier extends StateNotifier<SyncState> {
 
   Future<void> load() async {
     final all = await transactionSyncService.store.all();
-    final cashierId = _currentCashierId();
-    // Tampilkan hanya antrian milik kasir yang sedang login (plus baris
-    // legacy tanpa cashier_id) agar tidak bocor antar-akun di perangkat sama.
-    final pending = cashierId == null
-        ? all
-        : all
-            .where((t) => t.cashierId == null || t.cashierId == cashierId)
-            .toList();
+    final pending = _visiblePending(all);
     state = state.copyWith(pending: pending, error: null);
+  }
+
+  /// Pagar antar-kasir: tampilkan hanya antrian milik kasir yang sedang login
+  /// (plus baris legacy tanpa cashier_id) agar tidak bocor antar-akun.
+  List<PendingTransaction> _visiblePending(List<PendingTransaction> all) {
+    final cashierId = _currentCashierId();
+    if (cashierId == null) return all;
+    return all
+        .where((t) => t.cashierId == null || t.cashierId == cashierId)
+        .toList();
   }
 
   Future<void> syncNow() async {
@@ -213,19 +216,16 @@ class SyncNotifier extends StateNotifier<SyncState> {
       final outcome = await transactionSyncService.syncAll(
         cashierId: _currentCashierId(),
       );
-      final pending = await transactionSyncService.store.all();
+      final all = await transactionSyncService.store.all();
       state = state.copyWith(
-        pending: pending,
+        pending: _visiblePending(all),
         syncing: false,
         lastSynced: outcome.synced,
         lastFailed: outcome.failed,
         error: outcome.error,
       );
     } catch (e) {
-      state = state.copyWith(
-        syncing: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(syncing: false, error: e.toString());
     }
   }
 
@@ -240,32 +240,31 @@ class SyncNotifier extends StateNotifier<SyncState> {
   }
 }
 
-final syncNotifierProvider =
-    StateNotifierProvider<SyncNotifier, SyncState>((ref) {
+final syncNotifierProvider = StateNotifierProvider<SyncNotifier, SyncState>((
+  ref,
+) {
   return SyncNotifier(
     transactionSyncService: ref.watch(transactionSyncServiceProvider),
     ref: ref,
   );
 });
 
-final productsProvider = FutureProvider<List<Product>>(
-  (ref) async {
-    final repo = ref.watch(productRepositoryProvider);
-    const pageSize = 100;
-    final all = <Product>[];
-    var page = 1;
-    while (page <= 200) {
-      final response = await repo.fetchPage(page: page, pageSize: pageSize);
-      all.addAll(response.items);
-      if (response.page * pageSize >= response.total ||
-          response.items.length < pageSize) {
-        break;
-      }
-      page += 1;
+final productsProvider = FutureProvider<List<Product>>((ref) async {
+  final repo = ref.watch(productRepositoryProvider);
+  const pageSize = 100;
+  final all = <Product>[];
+  var page = 1;
+  while (page <= 200) {
+    final response = await repo.fetchPage(page: page, pageSize: pageSize);
+    all.addAll(response.items);
+    if (response.page * pageSize >= response.total ||
+        response.items.length < pageSize) {
+      break;
     }
-    return all;
-  },
-);
+    page += 1;
+  }
+  return all;
+});
 
 final storeProfileRepositoryProvider = Provider<StoreProfileRepository>(
   (ref) => StoreProfileRepository(api: ref.watch(apiClientProvider)),
@@ -286,19 +285,16 @@ class StoreProfileState {
     StoreProfile? profile,
     bool? loading,
     Object? error = _unset,
-  }) =>
-      StoreProfileState(
-        profile: profile ?? this.profile,
-        loading: loading ?? this.loading,
-        error: identical(error, _unset) ? this.error : error as String?,
-      );
+  }) => StoreProfileState(
+    profile: profile ?? this.profile,
+    loading: loading ?? this.loading,
+    error: identical(error, _unset) ? this.error : error as String?,
+  );
 }
 
 class StoreProfileNotifier extends StateNotifier<StoreProfileState> {
-  StoreProfileNotifier({
-    required this.repository,
-    required this.sessionStore,
-  }) : super(StoreProfileState(profile: sessionStore.storeProfile)) {
+  StoreProfileNotifier({required this.repository, required this.sessionStore})
+    : super(StoreProfileState(profile: sessionStore.storeProfile)) {
     load();
   }
 
@@ -322,28 +318,26 @@ class StoreProfileNotifier extends StateNotifier<StoreProfileState> {
 
 final storeProfileNotifierProvider =
     StateNotifierProvider<StoreProfileNotifier, StoreProfileState>((ref) {
-  return StoreProfileNotifier(
-    repository: ref.watch(storeProfileRepositoryProvider),
-    sessionStore: ref.watch(sessionStoreProvider),
+      return StoreProfileNotifier(
+        repository: ref.watch(storeProfileRepositoryProvider),
+        sessionStore: ref.watch(sessionStoreProvider),
+      );
+    });
+
+final receiptServiceProvider = Provider<ReceiptService>((ref) {
+  final sessionStore = ref.watch(sessionStoreProvider);
+  return ReceiptService(
+    storeBuilder: () {
+      final profile = sessionStore.storeProfile;
+      return StoreInfo(
+        name: profile.storeName,
+        address: profile.address,
+        phone: profile.phone,
+        footer: profile.footer,
+      );
+    },
   );
 });
-
-final receiptServiceProvider = Provider<ReceiptService>(
-  (ref) {
-    final sessionStore = ref.watch(sessionStoreProvider);
-    return ReceiptService(
-      storeBuilder: () {
-        final profile = sessionStore.storeProfile;
-        return StoreInfo(
-          name: profile.storeName,
-          address: profile.address,
-          phone: profile.phone,
-          footer: profile.footer,
-        );
-      },
-    );
-  },
-);
 
 final printerServiceProvider = Provider<PrinterService>(
   (ref) => PrinterService(ref.watch(receiptServiceProvider)),
@@ -385,32 +379,29 @@ class PrinterState {
     bool? busy,
     Object? lastReceipt = _unset,
     Object? lastError = _unset,
-  }) =>
-      PrinterState(
-        available: available ?? this.available,
-        bluetoothOn: bluetoothOn ?? this.bluetoothOn,
-        scanning: scanning ?? this.scanning,
-        connected: connected ?? this.connected,
-        devices: devices ?? this.devices,
-        connectedDevice: identical(connectedDevice, _unset)
-            ? this.connectedDevice
-            : connectedDevice as PrinterDevice?,
-        paperSize: paperSize ?? this.paperSize,
-        busy: busy ?? this.busy,
-        lastReceipt: identical(lastReceipt, _unset)
-            ? this.lastReceipt
-            : lastReceipt as ReceiptData?,
-        lastError: identical(lastError, _unset)
-            ? this.lastError
-            : lastError as String?,
-      );
+  }) => PrinterState(
+    available: available ?? this.available,
+    bluetoothOn: bluetoothOn ?? this.bluetoothOn,
+    scanning: scanning ?? this.scanning,
+    connected: connected ?? this.connected,
+    devices: devices ?? this.devices,
+    connectedDevice: identical(connectedDevice, _unset)
+        ? this.connectedDevice
+        : connectedDevice as PrinterDevice?,
+    paperSize: paperSize ?? this.paperSize,
+    busy: busy ?? this.busy,
+    lastReceipt: identical(lastReceipt, _unset)
+        ? this.lastReceipt
+        : lastReceipt as ReceiptData?,
+    lastError: identical(lastError, _unset)
+        ? this.lastError
+        : lastError as String?,
+  );
 }
 
 class PrinterNotifier extends StateNotifier<PrinterState> {
-  PrinterNotifier({
-    required this.printerService,
-    required this.sessionStore,
-  }) : super(const PrinterState()) {
+  PrinterNotifier({required this.printerService, required this.sessionStore})
+    : super(const PrinterState()) {
     _restore();
   }
 
@@ -464,7 +455,11 @@ class PrinterNotifier extends StateNotifier<PrinterState> {
         connectedDevice: device,
       );
     } catch (e) {
-      state = state.copyWith(busy: false, connected: false, lastError: _message(e));
+      state = state.copyWith(
+        busy: false,
+        connected: false,
+        lastError: _message(e),
+      );
     }
   }
 
@@ -504,11 +499,7 @@ class PrinterNotifier extends StateNotifier<PrinterState> {
   }
 
   Future<void> printReceipt(ReceiptData receipt) async {
-    state = state.copyWith(
-      busy: true,
-      lastError: null,
-      lastReceipt: receipt,
-    );
+    state = state.copyWith(busy: true, lastError: null, lastReceipt: receipt);
     await sessionStore.saveLastReceipt(receipt);
     try {
       await printerService.printReceipt(receipt, state.paperSize);
@@ -535,8 +526,8 @@ class PrinterNotifier extends StateNotifier<PrinterState> {
 
 final printerNotifierProvider =
     StateNotifierProvider<PrinterNotifier, PrinterState>((ref) {
-  return PrinterNotifier(
-    printerService: ref.watch(printerServiceProvider),
-    sessionStore: ref.watch(sessionStoreProvider),
-  );
-});
+      return PrinterNotifier(
+        printerService: ref.watch(printerServiceProvider),
+        sessionStore: ref.watch(sessionStoreProvider),
+      );
+    });

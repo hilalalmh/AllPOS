@@ -161,7 +161,7 @@ void main() {
     expect(pending.single.invoiceNumber, 'POS-20260923-0001');
   });
 
-  test('syncAll saat offline tetap PENDING dan mencatat kegagalan', () async {
+  test('syncAll saat offline tetap PENDING (transien tidak dihitung gagal)', () async {
     final service = buildService(_FakeApi(failNetwork: true));
     await service.createWithFallback(
       items: sampleItems(),
@@ -172,7 +172,9 @@ void main() {
 
     final outcome = await service.syncAll();
     expect(outcome.synced, 0);
-    expect(outcome.failed, 1);
+    // Gangguan jaringan bersifat transien: tidak dihitung sebagai kegagalan
+    // permanen (failed), baris tetap PENDING untuk di-replay berikutnya.
+    expect(outcome.failed, 0);
     expect(outcome.error, isNotNull);
     final pending = await store.all();
     expect(pending.single.isPending, isTrue);

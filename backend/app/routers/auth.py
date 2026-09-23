@@ -35,7 +35,9 @@ def _check_login_throttle(username: str, client_ip: str) -> None:
     window = settings.LOGIN_LOCKOUT_MINUTES * 60
     now = time.monotonic()
     with _login_lock:
-        attempts = _login_attempts[key]
+        attempts = _login_attempts.get(key)
+        if not attempts:
+            return
         while attempts and now - attempts[0] > window:
             attempts.popleft()
         if len(attempts) >= settings.LOGIN_MAX_FAILURES:
@@ -44,7 +46,22 @@ def _check_login_throttle(username: str, client_ip: str) -> None:
                 detail="Terlalu banyak percobaan login. Coba lagi nanti.",
                 headers={"Retry-After": str(settings.LOGIN_LOCKOUT_MINUTES * 60)},
             )
-        attempts.append(now)
+
+
+def _register_login_failure(username: str, client_ip: str) -> None:
+    """Catat percobaan HANYA saat kredensial salah (tidak melindungi akun yang
+    login berhasil, sekaligus mencegah penyerang menghabiskan kuota akun orang
+    lain lewat bot langsung). Dict dibatasi agar tidak bocor tak terkendali."""
+    key = (username.lower(), client_ip)
+    with _login_lock:
+        attempts = _login_attempts[key]
+        attempts.append(time.monotonic())
+        if len(_login_attempts) > 10000:
+            oldest_key = min(
+                _login_attempts,
+                key=lambda k: _login_attempts[k][-1] if _login_attempts[k] else 0,
+            )
+            _login_attempts.pop(oldest_key, None)
 
 
 def _register_login_success(username: str, client_ip: str) -> None:
@@ -72,6 +89,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         db.commit()
         return tokens
     except InvalidCredentialsError as exc:
+        _register_login_failure(payload.username, client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),

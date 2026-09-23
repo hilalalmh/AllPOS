@@ -71,6 +71,16 @@ def delete_image(url: str | None) -> None:
     if not url or not url.startswith("/uploads/"):
         return
     filename = url.rsplit("/", 1)[-1]
+    if not filename:
+        return
+    # Tolak nama yang bisa keluar dari direktori upload (anti path traversal).
+    if (
+        filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or filename.startswith(".")
+    ):
+        return
     file_path = upload_dir() / filename
     if file_path.exists():
         file_path.unlink()

@@ -17,10 +17,7 @@ class SyncOutcome {
 }
 
 class TransactionSyncService {
-  TransactionSyncService({
-    required this.api,
-    required this.store,
-  });
+  TransactionSyncService({required this.api, required this.store});
 
   final ApiClient api;
   final OfflineTransactionStore store;
@@ -107,17 +104,14 @@ class TransactionSyncService {
     String? localRef,
     DateTime? createdAtLocal,
   }) async {
-    final response = await api.post(
-      '/api/v1/transactions',
-      {
-        'items': [for (final i in items) i.toRequestJson()],
-        'payment_method': paymentMethod,
-        'paid_amount': _round2(paidAmount),
-        'discount': _round2(discount),
-        'local_ref': ?localRef,
-        'created_at_local': ?createdAtLocal?.toIso8601String(),
-      },
-    );
+    final response = await api.post('/api/v1/transactions', {
+      'items': [for (final i in items) i.toRequestJson()],
+      'payment_method': paymentMethod,
+      'paid_amount': _round2(paidAmount),
+      'discount': _round2(discount),
+      'local_ref': ?localRef,
+      'created_at_local': ?createdAtLocal?.toIso8601String(),
+    });
     return Transaction.fromJson(response as Map<String, dynamic>);
   }
 
@@ -152,7 +146,8 @@ class TransactionSyncService {
           firstError ??= e.message;
           await store.markFailed(item.id!, e.message);
         } else {
-          failed++;
+          // Network/5xx bersifat transien: baris tetap PENDING (aman di-replay
+          // berkat local_ref), jangan dihitung sebagai kegagalan permanen.
           firstError ??= _message(e);
         }
       }

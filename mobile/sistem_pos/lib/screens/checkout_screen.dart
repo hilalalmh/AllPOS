@@ -109,6 +109,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
     ];
     setState(() => _submitting = true);
+    // Tangkap notifier SEBELUM await: bila user keluar saat request berjalan,
+    // widget sudah unmount tapi keranjang tetap harus dibersihkan agar sale
+    // yang tercatat server/antrian tidak di-bayar dua kali oleh resubmit.
+    final cartNotifier = ref.read(cartProvider.notifier);
+    final syncNotifier = ref.read(syncNotifierProvider.notifier);
     try {
       final paid = _paymentMethod == 'CASH' ? _paid : total;
       final result = await syncService.createWithFallback(
@@ -119,22 +124,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         cashierId: user.id,
         localRef: _localRefFor(cart),
       );
-      final cartNotifier = ref.read(cartProvider.notifier);
-      if (!mounted) return;
       cartNotifier.clear();
+      if (result.isOffline) {
+        await syncNotifier.load();
+      }
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => PaymentSuccessScreen(
-            result: result,
-            cashierName: user.fullName,
-          ),
+          builder: (_) =>
+              PaymentSuccessScreen(result: result, cashierName: user.fullName),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Transaksi gagal: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Transaksi gagal: $e')));
       setState(() => _submitting = false);
     }
   }
@@ -148,25 +152,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final subtotal = cart.subtotal;
     final total = _totalFor(cart);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-        actions: [
-          IconButton(
-            tooltip: 'Kosongkan keranjang',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: cart.isEmpty
-                ? null
-                : () => ref.read(cartProvider.notifier).clear(),
-          ),
-        ],
-      ),
-      body: cart.isEmpty
-          ? const Center(child: Text('Keranjang kosong.'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                ...cart.lines.map((line) => _LineTile(
+    return PopScope(
+      canPop: !_submitting,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Checkout'),
+          actions: [
+            IconButton(
+              tooltip: 'Kosongkan keranjang',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: cart.isEmpty
+                  ? null
+                  : () => ref.read(cartProvider.notifier).clear(),
+            ),
+          ],
+        ),
+        body: cart.isEmpty
+            ? const Center(child: Text('Keranjang kosong.'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  ...cart.lines.map(
+                    (line) => _LineTile(
                       line: line,
                       onIncrement: () => ref
                           .read(cartProvider.notifier)
@@ -177,115 +184,119 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       onRemove: () => ref
                           .read(cartProvider.notifier)
                           .remove(line.product.id),
-                    )),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _discountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                    RegexInputFormatterMaxTwoDecimal(),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Diskon (Rp)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.percent),
+                    ),
                   ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 16),
-                const Text('Metode Pembayaran'),
-                const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: [
-                    for (final m in _methods)
-                      ButtonSegment(
-                        value: m.value,
-                        label: Text(m.label),
-                        icon: Icon(m.icon),
-                      ),
-                  ],
-                  selected: {_paymentMethod},
-                  onSelectionChanged: (selection) =>
-                      setState(() => _paymentMethod = selection.first),
-                ),
-                if (_paymentMethod == 'CASH') ...[
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: _paidController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    controller: _discountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                       RegexInputFormatterMaxTwoDecimal(),
                     ],
                     decoration: const InputDecoration(
-                      labelText: 'Uang Diterima (Rp)',
+                      labelText: 'Diskon (Rp)',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.money),
+                      prefixIcon: Icon(Icons.percent),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                ],
-                const SizedBox(height: 24),
-                _SummaryTile(label: 'Subtotal', value: subtotal),
-                _SummaryTile(
-                  label: 'Diskon',
-                  value: -_discount.clamp(0, subtotal),
-                  hint: total,
-                ),
-                _SummaryTile(label: 'Total', value: total, bold: true),
-                if (_paymentMethod == 'CASH')
+                  const SizedBox(height: 16),
+                  const Text('Metode Pembayaran'),
+                  const SizedBox(height: 8),
+                  SegmentedButton<String>(
+                    segments: [
+                      for (final m in _methods)
+                        ButtonSegment(
+                          value: m.value,
+                          label: Text(m.label),
+                          icon: Icon(m.icon),
+                        ),
+                    ],
+                    selected: {_paymentMethod},
+                    onSelectionChanged: (selection) =>
+                        setState(() => _paymentMethod = selection.first),
+                  ),
+                  if (_paymentMethod == 'CASH') ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _paidController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        RegexInputFormatterMaxTwoDecimal(),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Uang Diterima (Rp)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.money),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  _SummaryTile(label: 'Subtotal', value: subtotal),
                   _SummaryTile(
-                    label: 'Kembalian',
-                    value: (_paid - total),
-                    hint: _paid,
-                    accent: true,
+                    label: 'Diskon',
+                    value: -_discount.clamp(0, subtotal),
+                    hint: total,
                   ),
-                const SizedBox(height: 24),
-                if (_paymentMethod != 'CASH')
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Total dibayar: ${formatRupiah(total)} '
-                      '($_methodLabel)',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  _SummaryTile(label: 'Total', value: total, bold: true),
+                  if (_paymentMethod == 'CASH')
+                    _SummaryTile(
+                      label: 'Kembalian',
+                      value: (_paid - total),
+                      hint: _paid,
+                      accent: true,
                     ),
-                  ),
-                FilledButton.icon(
-                  onPressed: user == null || !_canSubmit(cart)
-                      ? null
-                      : () => _submit(cart, user),
-                  icon: _submitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check_circle),
-                  label: Text(_submitting ? 'Memproses...' : 'Bayar'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 24),
+                  if (_paymentMethod != 'CASH')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Total dibayar: ${formatRupiah(total)} '
+                        '($_methodLabel)',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
-                  ),
-                ),
-                if (_paymentMethod == 'CASH' && _paid < total)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Uang diterima kurang Rp ${formatRupiah(total - _paid)}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                  FilledButton.icon(
+                    onPressed: user == null || !_canSubmit(cart)
+                        ? null
+                        : () => _submit(cart, user),
+                    icon: _submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle),
+                    label: Text(_submitting ? 'Memproses...' : 'Bayar'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-              ],
-            ),
+                  if (_paymentMethod == 'CASH' && _paid < total)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Uang diterima kurang Rp ${formatRupiah(total - _paid)}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -374,10 +385,7 @@ class _SummaryTile extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: bold ? theme.textTheme.titleMedium : null,
-          ),
+          Text(label, style: bold ? theme.textTheme.titleMedium : null),
           Text(
             formatRupiah(value),
             style: theme.textTheme.bodyLarge?.copyWith(

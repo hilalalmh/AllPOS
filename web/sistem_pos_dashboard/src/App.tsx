@@ -13,6 +13,13 @@ import ProductsPage from "./pages/ProductsPage";
 import StoreProfilePage from "./pages/StoreProfilePage";
 import TransactionsPage from "./pages/TransactionsPage";
 import UsersPage from "./pages/UsersPage";
+import { useAuthStore } from "./stores/authStore";
+
+function DefaultRedirect() {
+  // Arahkan sesuai peran: OWNER ke dashboard, KASIR ke layar kasir.
+  const user = useAuthStore((s) => s.user);
+  return <Navigate to={user?.role === "OWNER" ? "/" : "/pos"} replace />;
+}
 
 export default function App() {
   return (
@@ -25,7 +32,14 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<HomePage />} />
+        <Route
+          path="/"
+          element={
+            <RequireRole role="OWNER">
+              <HomePage />
+            </RequireRole>
+          }
+        />
         <Route path="/pos" element={<PosPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route
@@ -77,7 +91,7 @@ export default function App() {
           }
         />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<DefaultRedirect />} />
     </Routes>
   );
 }

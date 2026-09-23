@@ -1,7 +1,20 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import type { AxiosError } from "axios";
 
 import { useAuthStore } from "../stores/authStore";
+
+function loginErrorMessage(err: unknown): string {
+  const status = (err as AxiosError)?.response?.status;
+  const detail = (err as AxiosError & { response?: { data?: { detail?: string } } })
+    ?.response?.data?.detail;
+  if (status === 429) return detail ?? "Terlalu banyak percobaan login. Coba lagi nanti.";
+  if (status === 403) return detail ?? "Akun tidak aktif.";
+  if ((err as AxiosError)?.code === "ERR_NETWORK") {
+    return "Tidak dapat menjangkau server. Periksa koneksi.";
+  }
+  return detail ?? "Login gagal. Periksa username dan password.";
+}
 
 export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
@@ -25,7 +38,7 @@ export default function LoginPage() {
       await login(username, password);
       navigate(from ?? homePath(), { replace: true });
     } catch (err) {
-      setError("Login gagal. Periksa username dan password.");
+      setError(loginErrorMessage(err));
       console.error(err);
     } finally {
       setLoading(false);

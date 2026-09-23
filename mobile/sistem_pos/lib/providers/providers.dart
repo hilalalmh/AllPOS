@@ -182,9 +182,16 @@ class SyncState {
 class SyncNotifier extends StateNotifier<SyncState> {
   SyncNotifier({
     required this.transactionSyncService,
+    required this.ref,
   }) : super(const SyncState());
 
   final TransactionSyncService transactionSyncService;
+  final Ref ref;
+
+  int? _currentCashierId() {
+    final user = ref.read(sessionStoreProvider).user;
+    return user?.id;
+  }
 
   Future<void> load() async {
     final pending =
@@ -196,7 +203,9 @@ class SyncNotifier extends StateNotifier<SyncState> {
     if (state.syncing) return;
     state = state.copyWith(syncing: true, error: null);
     try {
-      final outcome = await transactionSyncService.syncAll();
+      final outcome = await transactionSyncService.syncAll(
+        cashierId: _currentCashierId(),
+      );
       final pending = await transactionSyncService.store.all();
       state = state.copyWith(
         pending: pending,
@@ -226,7 +235,10 @@ class SyncNotifier extends StateNotifier<SyncState> {
 
 final syncNotifierProvider =
     StateNotifierProvider<SyncNotifier, SyncState>((ref) {
-  return SyncNotifier(transactionSyncService: ref.watch(transactionSyncServiceProvider));
+  return SyncNotifier(
+    transactionSyncService: ref.watch(transactionSyncServiceProvider),
+    ref: ref,
+  );
 });
 
 final productsProvider = FutureProvider<List<Product>>(

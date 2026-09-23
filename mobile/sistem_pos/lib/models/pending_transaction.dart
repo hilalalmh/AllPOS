@@ -14,6 +14,7 @@ class PendingTransaction {
     required this.changeAmount,
     required this.createdAtLocal,
     required this.status,
+    this.cashierId,
     this.id,
     this.invoiceNumber,
     this.error,
@@ -30,6 +31,7 @@ class PendingTransaction {
   final num paidAmount;
   final num changeAmount;
   final DateTime createdAtLocal;
+  final int? cashierId;
   final String status;
   final String? invoiceNumber;
   final String? error;
@@ -51,6 +53,7 @@ class PendingTransaction {
         paidAmount: row['paid_amount'] as num,
         changeAmount: row['change_amount'] as num,
         createdAtLocal: DateTime.parse(row['created_at_local'] as String),
+        cashierId: row['cashier_id'] as int?,
         status: row['status'] as String,
         invoiceNumber: row['invoice_number'] as String?,
         error: row['error'] as String?,
@@ -70,6 +73,7 @@ class PendingTransaction {
         'paid_amount': paidAmount,
         'change_amount': changeAmount,
         'created_at_local': createdAtLocal.toIso8601String(),
+        'cashier_id': cashierId,
         'status': status,
         'invoice_number': invoiceNumber,
         'error': error,

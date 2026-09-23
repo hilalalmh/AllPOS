@@ -12,6 +12,7 @@ import PosPage from "./pages/PosPage";
 import ProductsPage from "./pages/ProductsPage";
 import StoreProfilePage from "./pages/StoreProfilePage";
 import TransactionsPage from "./pages/TransactionsPage";
+import UsersPage from "./pages/UsersPage";
 
 export default function App() {
   return (
@@ -48,6 +49,14 @@ export default function App() {
           element={
             <RequireRole role="OWNER">
               <StoreProfilePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <RequireRole role="OWNER">
+              <UsersPage />
             </RequireRole>
           }
         />

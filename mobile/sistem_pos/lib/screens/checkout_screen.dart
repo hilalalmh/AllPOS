@@ -91,6 +91,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         paymentMethod: _paymentMethod,
         paidAmount: paid,
         discount: discount,
+        cashierId: user.id,
       );
       final cartNotifier = ref.read(cartProvider.notifier);
       if (!mounted) return;

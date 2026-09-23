@@ -14,6 +14,7 @@ const ownerNav = [
   { to: "/products", label: "Produk" },
   { to: "/categories", label: "Kategori" },
   { to: "/store-profile", label: "Profil Toko" },
+  { to: "/users", label: "Pengguna" },
   { to: "/audit", label: "Audit Trail" },
   { to: "/health", label: "Health Check" },
 ];

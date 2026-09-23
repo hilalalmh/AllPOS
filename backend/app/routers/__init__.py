@@ -10,6 +10,7 @@ from app.routers import (
     reports,
     store_profile,
     transactions,
+    users,
 )
 
 router = APIRouter()
@@ -22,3 +23,4 @@ router.include_router(dashboard.router)
 router.include_router(store_profile.router)
 router.include_router(audit.router)
 router.include_router(reports.router)
+router.include_router(users.router)

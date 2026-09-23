@@ -15,6 +15,13 @@ export interface UserMe {
   role: string;
 }
 
+export interface UserList {
+  items: UserMe[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER";
 export type TransactionStatus = "PENDING" | "PAID" | "CANCELLED";
 

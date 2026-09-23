@@ -29,7 +29,7 @@ class OfflineTransactionStore {
         p.join(await getDatabasesPath(), 'sistem_pos.db');
     final db = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE pending_transactions (
@@ -43,12 +43,20 @@ class OfflineTransactionStore {
             paid_amount REAL NOT NULL,
             change_amount REAL NOT NULL,
             created_at_local TEXT NOT NULL,
+            cashier_id INTEGER,
             status TEXT NOT NULL,
             invoice_number TEXT,
             error TEXT,
             synced_at TEXT
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE pending_transactions ADD COLUMN cashier_id INTEGER',
+          );
+        }
       },
     );
     _db = db;
@@ -69,6 +77,7 @@ class OfflineTransactionStore {
       paidAmount: entry.paidAmount,
       changeAmount: entry.changeAmount,
       createdAtLocal: entry.createdAtLocal,
+      cashierId: entry.cashierId,
       status: entry.status,
       invoiceNumber: entry.invoiceNumber,
       error: entry.error,

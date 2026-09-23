@@ -35,6 +35,7 @@ class TransactionSyncService {
     required String paymentMethod,
     required num paidAmount,
     required num discount,
+    int? cashierId,
   }) async {
     final now = DateTime.now();
     final localRef = 'LOCAL-${now.microsecondsSinceEpoch}';
@@ -67,6 +68,7 @@ class TransactionSyncService {
           paidAmount: paid,
           changeAmount: change,
           createdAtLocal: now,
+          cashierId: cashierId,
           status: 'PENDING',
         ),
       );
@@ -105,13 +107,20 @@ class TransactionSyncService {
     return Transaction.fromJson(response as Map<String, dynamic>);
   }
 
-  Future<SyncOutcome> syncAll() async {
+  Future<SyncOutcome> syncAll({int? cashierId}) async {
     final pending = await store.all();
     var synced = 0;
     var failed = 0;
     String? firstError;
     for (final item in pending) {
       if (!item.isPending) continue;
+      // Antrian offline dimiliki kasir tertentu; jangan sinkronkan punya
+      // kasir lain saat berpindah akun di perangkat yang sama.
+      if (cashierId != null &&
+          item.cashierId != null &&
+          item.cashierId != cashierId) {
+        continue;
+      }
       try {
         final transaction = await _onlineCreate(
           item.items,

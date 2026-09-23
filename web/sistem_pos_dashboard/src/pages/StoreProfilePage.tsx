@@ -39,6 +39,24 @@ export default function StoreProfilePage() {
     return <p className="text-sm text-gray-500">Memuat profil toko...</p>;
   }
 
+  if (error && !profile) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <h1 className="mb-4 text-xl font-semibold">Profil Toko</h1>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p>Gagal memuat profil toko: {error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-3 rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function updateField(name: string, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }));
   }

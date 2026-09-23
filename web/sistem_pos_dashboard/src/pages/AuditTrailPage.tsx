@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   EmptyState,
@@ -45,8 +45,11 @@ export default function AuditTrailPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const seqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -58,14 +61,16 @@ export default function AuditTrailPage() {
         page,
         page_size: PAGE_SIZE,
       });
-      setData(res);
+      if (seq === seqRef.current) setData(res);
     } catch (err) {
-      console.error(err);
-      setError("Gagal memuat audit trail.");
+      if (seq === seqRef.current) {
+        console.error(err);
+        setError("Gagal memuat audit trail.");
+      }
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
-  }, [action, entityType, startDate, endDate, page]);
+  }, [action, entityType, startDate, endDate, page, reloadKey]);
 
   useEffect(() => {
     void load();
@@ -74,7 +79,7 @@ export default function AuditTrailPage() {
   function handleApply(e: FormEvent) {
     e.preventDefault();
     setPage(1);
-    void load();
+    setReloadKey((k) => k + 1);
   }
 
   return (

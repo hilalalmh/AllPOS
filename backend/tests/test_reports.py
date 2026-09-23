@@ -45,6 +45,21 @@ def test_transactions_csv(client):
     assert created.json()["invoice_number"] in body
 
 
+def test_transactions_csv_filtered_end_date(client):
+    owner = _login(client, "owner", "admin123")
+    created = _create_transaction(client, owner)
+    assert created.status_code == 201
+    res = client.get(
+        "/api/v1/reports/transactions.csv",
+        headers=owner,
+        params={"end_date": "9999-12-31"},
+    )
+    assert res.status_code == 200
+    body = res.text
+    assert body.startswith("invoice_number")
+    assert created.json()["invoice_number"] in body
+
+
 def test_transactions_csv_filtered(client):
     owner = _login(client, "owner", "admin123")
     _create_transaction(client, owner)
@@ -73,6 +88,22 @@ def test_transactions_pdf(client):
     text = _pdf_decompressed_text(res.content)
     assert "Laporan Transaksi" in text
     assert created.json()["invoice_number"] in text
+
+
+def test_transactions_pdf_with_end_date(client):
+    owner = _login(client, "owner", "admin123")
+    created = _create_transaction(client, owner)
+    assert created.status_code == 201
+
+    res = client.get(
+        "/api/v1/reports/transactions.pdf",
+        headers=owner,
+        params={"end_date": "9999-12-31"},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content.startswith(b"%PDF")
+    assert created.json()["invoice_number"] in _pdf_decompressed_text(res.content)
 
 
 def _pdf_decompressed_text(content: bytes) -> str:

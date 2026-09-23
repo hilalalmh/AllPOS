@@ -50,6 +50,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _submit(CartState cart, User user) async {
+    if (_submitting) return;
     final syncService = ref.read(transactionSyncServiceProvider);
     final subtotal = cart.subtotal;
     final discount = _discount.clamp(0, subtotal).toDouble();
@@ -72,8 +73,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         paidAmount: paid,
         discount: discount,
       );
-      ref.read(cartProvider.notifier).clear();
+      final cartNotifier = ref.read(cartProvider.notifier);
       if (!mounted) return;
+      cartNotifier.clear();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => PaymentSuccessScreen(
@@ -180,7 +182,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ],
                 const SizedBox(height: 24),
                 _SummaryTile(label: 'Subtotal', value: subtotal),
-                _SummaryTile(label: 'Diskon', value: -_discount, hint: total),
+                _SummaryTile(
+                  label: 'Diskon',
+                  value: -_discount.clamp(0, subtotal),
+                  hint: total,
+                ),
                 _SummaryTile(label: 'Total', value: total, bold: true),
                 if (_paymentMethod == 'CASH')
                   _SummaryTile(

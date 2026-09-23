@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   EmptyState,
@@ -30,6 +30,15 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   TRANSFER: "Transfer",
 };
 
+function useDebouncedValue<T>(value: T, delayMs = 400): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export default function TransactionsPage() {
   const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
   const [data, setData] = useState<TransactionList | null>(null);
@@ -37,6 +46,7 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [status, setStatus] = useState("");
   const [method, setMethod] = useState("");
   const [startDate, setStartDate] = useState(todayISO());
@@ -45,13 +55,17 @@ export default function TransactionsPage() {
 
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const seqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await fetchTransactions({
-        q: q || undefined,
+        q: debouncedQ || undefined,
         status: status || undefined,
         payment_method: method || undefined,
         start_date: startDate || undefined,
@@ -59,14 +73,16 @@ export default function TransactionsPage() {
         page,
         page_size: PAGE_SIZE,
       });
-      setData(res);
+      if (seq === seqRef.current) setData(res);
     } catch (err) {
-      console.error(err);
-      setError("Gagal memuat transaksi.");
+      if (seq === seqRef.current) {
+        console.error(err);
+        setError("Gagal memuat transaksi.");
+      }
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
-  }, [q, status, method, startDate, endDate, page]);
+  }, [debouncedQ, status, method, startDate, endDate, page, reloadKey]);
 
   useEffect(() => {
     void load();
@@ -75,10 +91,12 @@ export default function TransactionsPage() {
   function handleRefresh(e: FormEvent) {
     e.preventDefault();
     setPage(1);
-    void load();
+    setReloadKey((k) => k + 1);
   }
 
   async function handleExport(format: "csv" | "pdf") {
+    if (exporting) return;
+    setExporting(true);
     setError(null);
     try {
       await downloadReport(format, {
@@ -90,6 +108,8 @@ export default function TransactionsPage() {
     } catch (err) {
       console.error(err);
       setError("Gagal mengunduh laporan.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -173,14 +193,16 @@ export default function TransactionsPage() {
             <button
               type="button"
               onClick={() => handleExport("csv")}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={exporting}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Export CSV
             </button>
             <button
               type="button"
               onClick={() => handleExport("pdf")}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={exporting}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Export PDF
             </button>

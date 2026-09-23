@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime, time as dtime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Transaction, TransactionStatus
+from app.utils.dates import end_datetime, start_datetime
 
 
 class ReportService:
@@ -30,10 +31,11 @@ class ReportService:
     ) -> list[Any]:
         filters = []
         if start_date:
-            filters.append(Transaction.created_at >= datetime.strptime(start_date, "%Y-%m-%d"))
+            parsed = datetime.strptime(start_date, "%Y-%m-%d").date()
+            filters.append(Transaction.created_at >= start_datetime(parsed))
         if end_date:
-            end = datetime.strptime(end_date, "%Y-%m-%d") + dtime(hour=23, minute=59, second=59)
-            filters.append(Transaction.created_at <= end)
+            parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            filters.append(Transaction.created_at <= end_datetime(parsed))
         if payment_method:
             filters.append(Transaction.payment_method == payment_method.upper())
         if status:

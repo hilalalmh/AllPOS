@@ -36,21 +36,28 @@ class TransactionSyncService {
     required num paidAmount,
     required num discount,
   }) async {
+    final now = DateTime.now();
+    final localRef = 'LOCAL-${now.microsecondsSinceEpoch}';
+    final subtotal = items.fold<num>(0, (sum, i) => sum + i.subtotal);
+    final total = (subtotal - discount).clamp(0, double.infinity);
+    final paid = paymentMethod == 'CASH' ? paidAmount : total;
+    final change = paymentMethod == 'CASH'
+        ? (paid - total).clamp(0, double.infinity)
+        : 0;
     try {
-      final transaction = await _onlineCreate(items, paymentMethod, paidAmount, discount);
+      final transaction = await _onlineCreate(
+        items,
+        paymentMethod,
+        paid,
+        discount,
+        localRef: localRef,
+      );
       return PayResult.fromTransaction(transaction);
     } catch (e) {
       if (!_isNetworkError(e)) rethrow;
-      final now = DateTime.now();
-      final subtotal = items.fold<num>(0, (sum, i) => sum + i.subtotal);
-      final total = (subtotal - discount).clamp(0, double.infinity);
-      final paid = paymentMethod == 'CASH' ? paidAmount : total;
-      final change = paymentMethod == 'CASH'
-          ? (paid - total).clamp(0, double.infinity)
-          : 0;
       final pending = await store.insert(
         PendingTransaction(
-          localRef: 'LOCAL-${now.microsecondsSinceEpoch}',
+          localRef: localRef,
           items: items,
           paymentMethod: paymentMethod,
           subtotal: subtotal,
@@ -79,8 +86,9 @@ class TransactionSyncService {
     List<CartItemInput> items,
     String paymentMethod,
     num paidAmount,
-    num discount,
-  ) async {
+    num discount, {
+    String? localRef,
+  }) async {
     final response = await api.post(
       '/api/v1/transactions',
       {
@@ -88,6 +96,7 @@ class TransactionSyncService {
         'payment_method': paymentMethod,
         'paid_amount': paidAmount,
         'discount': discount,
+        'local_ref': ?localRef,
       },
     );
     return Transaction.fromJson(response as Map<String, dynamic>);
@@ -106,11 +115,14 @@ class TransactionSyncService {
           item.paymentMethod,
           item.paidAmount,
           item.discount,
+          localRef: item.localRef,
         );
         await store.markSynced(item.id!, transaction.invoiceNumber);
         synced++;
       } catch (e) {
         if (e is ApiException && e.statusCode >= 400 && e.statusCode < 500) {
+          failed++;
+          firstError ??= e.message;
           await store.markFailed(item.id!, e.message);
         } else {
           failed++;

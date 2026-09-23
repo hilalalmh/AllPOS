@@ -17,7 +17,7 @@ interface StoreProfileState {
   reset: () => void;
 }
 
-let loadStarted = false;
+let loadStartIf: Promise<void> | null = null;
 
 export const useStoreProfileStore = create<StoreProfileState>((set) => ({
   profile: null,
@@ -25,15 +25,23 @@ export const useStoreProfileStore = create<StoreProfileState>((set) => ({
   error: null,
 
   load: async () => {
-    if (loadStarted) return;
-    loadStarted = true;
-    set({ loading: true, error: null });
-    try {
-      const profile = await fetchStoreProfile();
-      set({ profile, loading: false });
-    } catch (err) {
-      set({ error: (err as Error).message, loading: false });
+    if (loadStartIf) {
+      await loadStartIf;
+      return;
     }
+    set({ loading: true, error: null });
+    const run = (async () => {
+      try {
+        const profile = await fetchStoreProfile();
+        set({ profile, loading: false });
+      } catch (err) {
+        set({ error: (err as Error).message, loading: false });
+      } finally {
+        loadStartIf = null;
+      }
+    })();
+    loadStartIf = run;
+    await run;
   },
 
   save: async (payload) => {
@@ -48,7 +56,6 @@ export const useStoreProfileStore = create<StoreProfileState>((set) => ({
   },
 
   reset: () => {
-    loadStarted = false;
     set({ profile: null, loading: false, error: null });
   },
 }));

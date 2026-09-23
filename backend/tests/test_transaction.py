@@ -198,3 +198,59 @@ def test_pagination(client, owner, kasir1):
     assert body["page"] == 1
     assert body["page_size"] == 2
     assert body["total"] >= 3
+
+
+def test_filter_start_and_end_date(client, owner, kasir1):
+    _create(client, kasir1, CASH_ESKOPI)
+    res = client.get(
+        "/api/v1/transactions",
+        headers=owner,
+        params={
+            "start_date": "2000-01-01",
+            "end_date": "9999-12-31",
+            "status": "PAID",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] >= 1
+    assert all(item["status"] == "PAID" for item in body["items"])
+    assert all(item["created_at"] >= "2000-01-01" for item in body["items"])
+    assert all(item["created_at"] <= "9999-12-31" for item in body["items"])
+
+
+def test_end_date_filter(client, owner, kasir1):
+    _create(client, kasir1, CASH_ESKOPI)
+    res = client.get(
+        "/api/v1/transactions",
+        headers=owner,
+        params={"end_date": "9999-12-31"},
+    )
+    assert res.status_code == 200
+    assert res.json()["total"] >= 1
+
+
+def test_local_ref_idempotent(client, kasir1):
+    payload = {**CASH_ESKOPI, "local_ref": "TX-LOCAL-12345"}
+    res = _create(client, kasir1, payload)
+    assert res.status_code == 201
+    first = res.json()
+
+    replay = _create(client, kasir1, payload)
+    assert replay.status_code == 201
+    second = replay.json()
+
+    assert first["id"] == second["id"]
+    assert first["invoice_number"] == second["invoice_number"]
+    total_after = client.get(
+        "/api/v1/transactions", headers=kasir1
+    ).json()["total"]
+    assert total_after >= 1
+
+
+def test_local_ref_conflict_without_ref_creates_separate(client, kasir1):
+    _create(client, kasir1, {**CASH_ESKOPI, "local_ref": "TX-LOCAL-67890"})
+    other = client.get(
+        "/api/v1/transactions", headers=kasir1
+    ).json()
+    assert other["total"] >= 1

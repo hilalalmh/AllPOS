@@ -76,3 +76,33 @@ def test_filter_and_pagination(client):
     assert logs["page_size"] == 5
     assert logs["total"] >= 1
     assert all("auth" in item["action"] for item in logs["items"])
+
+
+def test_audit_filter_end_date(client):
+    owner = _login(client, "owner", "admin123")
+    _login(client, "kasir1", "kasir123")
+    res = client.get(
+        "/api/v1/audit-logs",
+        headers=owner,
+        params={"end_date": "9999-12-31", "action": "auth.login"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] >= 1
+    assert all(item["action"] == "auth.login" for item in data["items"])
+
+
+def test_audit_filter_start_and_end_date(client):
+    owner = _login(client, "owner", "admin123")
+    _login(client, "kasir2", "kasir123")
+    res = client.get(
+        "/api/v1/audit-logs",
+        headers=owner,
+        params={
+            "start_date": "2000-01-01",
+            "end_date": "9999-12-31",
+            "entity_type": "user",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["total"] >= 1

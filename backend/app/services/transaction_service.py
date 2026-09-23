@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -20,6 +20,7 @@ from app.models import (
 from app.repositories.product_repository import ProductRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.schemas.transaction import TransactionCreateRequest
+from app.utils.dates import end_datetime, start_datetime
 
 
 class TransactionValidationError(Exception):
@@ -39,6 +40,12 @@ class TransactionService:
     def create_transaction(
         self, cashier: User, payload: TransactionCreateRequest
     ) -> Transaction:
+        if payload.local_ref is not None:
+            existing = self.db.scalar(
+                select(Transaction).where(Transaction.local_ref == payload.local_ref)
+            )
+            if existing is not None:
+                return existing
         items_data = []
         subtotal = Decimal("0")
 
@@ -85,9 +92,18 @@ class TransactionService:
                     payload.payment_method,
                     paid,
                     change,
+                    local_ref=payload.local_ref,
                 )
             except IntegrityError:
                 self.db.rollback()
+                if payload.local_ref is not None:
+                    existing = self.db.scalar(
+                        select(Transaction).where(
+                            Transaction.local_ref == payload.local_ref
+                        )
+                    )
+                    if existing is not None:
+                        return existing
                 if attempt == 4:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
@@ -108,9 +124,11 @@ class TransactionService:
         payment_method: PaymentMethod,
         paid: Decimal,
         change: Decimal,
+        local_ref: str | None = None,
     ) -> Transaction:
         transaction = Transaction(
             invoice_number=self._next_invoice_number(),
+            local_ref=local_ref,
             cashier_id=cashier.id,
             subtotal=subtotal,
             discount=discount,
@@ -216,13 +234,11 @@ class TransactionService:
             filters.append(Transaction.status == status_filter.upper())
 
         if start_date:
-            start = datetime.strptime(start_date, "%Y-%m-%d")
-            filters.append(Transaction.created_at >= start)
+            parsed = datetime.strptime(start_date, "%Y-%m-%d").date()
+            filters.append(Transaction.created_at >= start_datetime(parsed))
         if end_date:
-            end = datetime.strptime(end_date, "%Y-%m-%d") + time(
-                hour=23, minute=59, second=59
-            )
-            filters.append(Transaction.created_at <= end)
+            parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            filters.append(Transaction.created_at <= end_datetime(parsed))
 
         total = self.transactions.count_filtered(filters)
         items = self.transactions.paginate_filtered(

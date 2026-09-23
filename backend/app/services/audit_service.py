@@ -1,10 +1,11 @@
-from datetime import datetime, time as dtime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import AuditLog, User
+from app.utils.dates import end_datetime, start_datetime
 
 
 def record_audit(
@@ -52,13 +53,11 @@ class AuditService:
         if q:
             filters.append(AuditLog.action.ilike(f"%{q.strip()}%"))
         if start_date:
-            start = datetime.strptime(start_date, "%Y-%m-%d")
-            filters.append(AuditLog.created_at >= start)
+            parsed = datetime.strptime(start_date, "%Y-%m-%d").date()
+            filters.append(AuditLog.created_at >= start_datetime(parsed))
         if end_date:
-            end = datetime.strptime(end_date, "%Y-%m-%d") + dtime(
-                hour=23, minute=59, second=59
-            )
-            filters.append(AuditLog.created_at <= end)
+            parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            filters.append(AuditLog.created_at <= end_datetime(parsed))
         return filters
 
     def list_logs(

@@ -34,6 +34,9 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     invoice_number: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    local_ref: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True
+    )
     cashier_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), index=True
     )

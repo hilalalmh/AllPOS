@@ -9,6 +9,7 @@ import {
   setTokens,
   setUser,
 } from "../utils/token";
+import { useStoreProfileStore } from "./storeProfileStore";
 
 interface AuthState {
   user: UserMe | null;
@@ -48,6 +49,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     clearAuth();
     set({ user: null });
+    useStoreProfileStore.getState().reset();
     window.dispatchEvent(new Event("auth-expired"));
   },
 }));

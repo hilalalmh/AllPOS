@@ -19,10 +19,14 @@ class StoreInfo {
 
 class ReceiptService {
   ReceiptService({
-    this.store = const StoreInfo(name: 'SISTEM POS'),
-  });
+    StoreInfo? store,
+    StoreInfo Function()? storeBuilder,
+  }) : _storeBuilder = storeBuilder ??
+            (() => store ?? const StoreInfo(name: 'SISTEM POS'));
 
-  final StoreInfo store;
+  final StoreInfo Function() _storeBuilder;
+
+  StoreInfo get store => _storeBuilder();
 
   Map<String, dynamic> printerConfig(PaperSize paper) => {
         'width': paper == PaperSize.mm58 ? 580 : 800,
@@ -108,20 +112,21 @@ class ReceiptService {
     }
   }
 
-  String _money(num value) {
-    final whole = value.floor();
-    final cents = ((value - whole) * 100).round();
-    final digits = whole.toString();
-    final buffer = StringBuffer();
-    final reversed = digits.split('').reversed.toList();
-    for (var i = 0; i < reversed.length; i++) {
-      buffer.write(reversed[i]);
-      if ((i + 1) % 3 == 0 && i != reversed.length - 1) {
-        buffer.write('.');
-      }
+String _money(num value) {
+  final totalCents = (value * 100).round();
+  final whole = totalCents ~/ 100;
+  final cents = totalCents % 100;
+  final digits = whole.toString();
+  final buffer = StringBuffer();
+  final reversed = digits.split('').reversed.toList();
+  for (var i = 0; i < reversed.length; i++) {
+    buffer.write(reversed[i]);
+    if ((i + 1) % 3 == 0 && i != reversed.length - 1) {
+      buffer.write('.');
     }
-    final formattedWhole = buffer.toString().split('').reversed.join();
-    final fixed = cents < 10 ? '0$cents' : '$cents';
-    return '$formattedWhole,$fixed';
   }
+  final formattedWhole = buffer.toString().split('').reversed.join();
+  final fixed = cents < 10 ? '0$cents' : '$cents';
+  return '$formattedWhole,$fixed';
+}
 }

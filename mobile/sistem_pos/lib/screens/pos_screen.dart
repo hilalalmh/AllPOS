@@ -6,6 +6,7 @@ import '../providers/cart_provider.dart';
 import '../providers/providers.dart';
 import '../utils/money.dart';
 import 'checkout_screen.dart';
+import 'login_screen.dart';
 import 'pending_transactions_screen.dart';
 import 'printer_settings_screen.dart';
 
@@ -16,7 +17,8 @@ class PosScreen extends ConsumerStatefulWidget {
   ConsumerState<PosScreen> createState() => _PosScreenState();
 }
 
-class _PosScreenState extends ConsumerState<PosScreen> {
+class _PosScreenState extends ConsumerState<PosScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -25,6 +27,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         ref.read(syncNotifierProvider.notifier).load();
       }
     });
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(syncNotifierProvider.notifier).syncNow();
+    }
   }
 
   @override
@@ -34,6 +50,15 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final productsAsync = ref.watch(productsProvider);
     final cart = ref.watch(cartProvider);
     final sync = ref.watch(syncNotifierProvider);
+
+    ref.listen(authNotifierProvider, (previous, next) {
+      if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

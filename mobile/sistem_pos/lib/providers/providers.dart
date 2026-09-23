@@ -40,6 +40,8 @@ final authRepositoryProvider = Provider<AuthRepository>(
   ),
 );
 
+const _unset = Object();
+
 class AuthState {
   const AuthState({this.user, this.loading = false, this.error});
 
@@ -49,10 +51,11 @@ class AuthState {
 
   bool get isAuthenticated => user != null;
 
-  AuthState copyWith({User? user, bool? loading, String? error}) => AuthState(
+  AuthState copyWith({User? user, bool? loading, Object? error = _unset}) =>
+      AuthState(
         user: user ?? this.user,
         loading: loading ?? this.loading,
-        error: error ?? this.error,
+        error: identical(error, _unset) ? this.error : error as String?,
       );
 }
 
@@ -130,14 +133,14 @@ class SyncState {
     bool? syncing,
     int? lastSynced,
     int? lastFailed,
-    String? error,
+    Object? error = _unset,
   }) =>
       SyncState(
         pending: pending ?? this.pending,
         syncing: syncing ?? this.syncing,
         lastSynced: lastSynced ?? this.lastSynced,
         lastFailed: lastFailed ?? this.lastFailed,
-        error: error ?? this.error,
+        error: identical(error, _unset) ? this.error : error as String?,
       );
 }
 
@@ -155,16 +158,24 @@ class SyncNotifier extends StateNotifier<SyncState> {
   }
 
   Future<void> syncNow() async {
+    if (state.syncing) return;
     state = state.copyWith(syncing: true, error: null);
-    final outcome = await transactionSyncService.syncAll();
-    final pending = await transactionSyncService.store.all();
-    state = state.copyWith(
-      pending: pending,
-      syncing: false,
-      lastSynced: outcome.synced,
-      lastFailed: outcome.failed,
-      error: outcome.error,
-    );
+    try {
+      final outcome = await transactionSyncService.syncAll();
+      final pending = await transactionSyncService.store.all();
+      state = state.copyWith(
+        pending: pending,
+        syncing: false,
+        lastSynced: outcome.synced,
+        lastFailed: outcome.failed,
+        error: outcome.error,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        syncing: false,
+        error: e.toString(),
+      );
+    }
   }
 
   Future<void> retry(int id) async {
@@ -205,12 +216,12 @@ class StoreProfileState {
   StoreProfileState copyWith({
     StoreProfile? profile,
     bool? loading,
-    String? error,
+    Object? error = _unset,
   }) =>
       StoreProfileState(
         profile: profile ?? this.profile,
         loading: loading ?? this.loading,
-        error: error ?? this.error,
+        error: identical(error, _unset) ? this.error : error as String?,
       );
 }
 
@@ -226,7 +237,6 @@ class StoreProfileNotifier extends StateNotifier<StoreProfileState> {
   final SessionStore sessionStore;
 
   Future<void> load() async {
-    if (state.loading) return;
     state = state.copyWith(loading: true, error: null);
     try {
       final profile = await repository.fetch();
@@ -251,14 +261,17 @@ final storeProfileNotifierProvider =
 
 final receiptServiceProvider = Provider<ReceiptService>(
   (ref) {
-    final profile = ref.watch(storeProfileNotifierProvider).profile;
+    final sessionStore = ref.watch(sessionStoreProvider);
     return ReceiptService(
-      store: StoreInfo(
-        name: profile.storeName,
-        address: profile.address,
-        phone: profile.phone,
-        footer: profile.footer,
-      ),
+      storeBuilder: () {
+        final profile = sessionStore.storeProfile;
+        return StoreInfo(
+          name: profile.storeName,
+          address: profile.address,
+          phone: profile.phone,
+          footer: profile.footer,
+        );
+      },
     );
   },
 );
@@ -302,7 +315,7 @@ class PrinterState {
     PaperSize? paperSize,
     bool? busy,
     ReceiptData? lastReceipt,
-    String? lastError,
+    Object? lastError = _unset,
   }) =>
       PrinterState(
         available: available ?? this.available,
@@ -314,7 +327,9 @@ class PrinterState {
         paperSize: paperSize ?? this.paperSize,
         busy: busy ?? this.busy,
         lastReceipt: lastReceipt ?? this.lastReceipt,
-        lastError: lastError ?? this.lastError,
+        lastError: identical(lastError, _unset)
+            ? this.lastError
+            : lastError as String?,
       );
 }
 

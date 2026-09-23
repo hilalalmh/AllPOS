@@ -8,12 +8,26 @@ class OfflineTransactionStore {
 
   final String? _customPath;
   Database? _db;
+  Future<Database>? _dbFuture;
 
   Future<Database> get _database async {
     if (_db != null) return _db!;
+    final pending = _dbFuture;
+    if (pending != null) return pending;
+    final future = _open();
+    _dbFuture = future;
+    try {
+      return await future;
+    } catch (_) {
+      if (identical(_dbFuture, future)) _dbFuture = null;
+      rethrow;
+    }
+  }
+
+  Future<Database> _open() async {
     final path = _customPath ??
         p.join(await getDatabasesPath(), 'sistem_pos.db');
-    _db = await openDatabase(
+    final db = await openDatabase(
       path,
       version: 1,
       onCreate: (db, _) async {
@@ -37,7 +51,8 @@ class OfflineTransactionStore {
         ''');
       },
     );
-    return _db!;
+    _db = db;
+    return db;
   }
 
   Future<PendingTransaction> insert(PendingTransaction entry) async {

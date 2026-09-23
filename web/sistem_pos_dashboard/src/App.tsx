@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import RequireAuth from "./components/RequireAuth";
+import RequireRole from "./components/RequireRole";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AuditTrailPage from "./pages/AuditTrailPage";
 import CategoriesPage from "./pages/CategoriesPage";
@@ -26,11 +27,46 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/pos" element={<PosPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/store-profile" element={<StoreProfilePage />} />
-        <Route path="/audit" element={<AuditTrailPage />} />
-        <Route path="/health" element={<HealthPage />} />
+        <Route
+          path="/products"
+          element={
+            <RequireRole role="OWNER">
+              <ProductsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <RequireRole role="OWNER">
+              <CategoriesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/store-profile"
+          element={
+            <RequireRole role="OWNER">
+              <StoreProfilePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <RequireRole role="OWNER">
+              <AuditTrailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/health"
+          element={
+            <RequireRole role="OWNER">
+              <HealthPage />
+            </RequireRole>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

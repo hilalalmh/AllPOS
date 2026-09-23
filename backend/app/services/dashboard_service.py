@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import and_, func, select
@@ -10,20 +10,13 @@ from app.schemas.dashboard import (
     DashboardSummary,
     SalesPoint,
 )
+from app.utils.dates import business_day_bounds
 
 
 def resolve_range(
     start_date: date | None, end_date: date | None
 ) -> tuple[datetime, datetime]:
-    today = date.today()
-    start = start_date or today
-    end = end_date or today
-    if end < start:
-        end = start
-    return (
-        datetime.combine(start, time.min),
-        datetime.combine(end, time.max),
-    )
+    return business_day_bounds(start_date, end_date)
 
 
 class DashboardService:

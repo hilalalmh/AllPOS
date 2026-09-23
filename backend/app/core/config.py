@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     JWT_EXPIRES_MINUTES: int = 60
     JWT_REFRESH_EXPIRES_DAYS: int = 7
 
+    SEED_ADMIN_USERNAME: str = "owner"
     SEED_ADMIN_PASSWORD: str = "admin123"
     LOGIN_MAX_FAILURES: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15

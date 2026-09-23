@@ -60,11 +60,23 @@ def prepare_database():
 
 @pytest.fixture
 def db_session():
-    session = TestingSession()
+    """Sesi per-test di dalam transaksi yang di-rollback setelah test.
+
+    Router yang memanggil db.commit() hanya menutup savepoint
+    (join_transaction_mode="create_savepoint"), sehingga data tidak
+    bocor antar-test dan test cepat serta terisolasi.
+    """
+    connection = test_engine.connect()
+    transaction = connection.begin()
+    session = TestingSession(
+        bind=connection, join_transaction_mode="create_savepoint"
+    )
     try:
         yield session
     finally:
         session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture

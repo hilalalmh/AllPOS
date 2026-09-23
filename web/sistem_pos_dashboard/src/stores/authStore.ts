@@ -1,10 +1,11 @@
 import { create } from "zustand";
 
-import { login as apiLogin, fetchMe } from "../services/auth";
+import { login as apiLogin, fetchMe, logoutRemote } from "../services/auth";
 import type { UserMe } from "../types";
 import {
   clearAuth,
   getAccessToken,
+  getRefreshToken,
   getUser,
   setTokens,
   setUser,
@@ -59,6 +60,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    const refresh = getRefreshToken();
+    if (refresh) {
+      void logoutRemote(refresh).catch(() => {
+        // Gagal revoke tidak menghalangi logout lokal.
+      });
+    }
     clearAuth();
     set({ user: null });
     useStoreProfileStore.getState().reset();

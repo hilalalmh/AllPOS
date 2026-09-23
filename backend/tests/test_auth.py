@@ -77,3 +77,72 @@ def test_refresh_invalid_token(client):
         "/api/v1/auth/refresh", json={"refresh_token": "garbage"}
     )
     assert res.status_code == 401
+
+
+def test_logout_revokes_refresh_token(client, login_payload):
+    login = client.post("/api/v1/auth/login", json=login_payload).json()
+    res = client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert res.status_code == 204
+    res = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert res.status_code == 401
+
+
+def test_refresh_rotates_token(client, login_payload):
+    login = client.post("/api/v1/auth/login", json=login_payload).json()
+    first = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert first.status_code == 200
+    refreshed = first.json()
+    # Token lama sudah dicabut oleh rotasi.
+    res = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert res.status_code == 401
+    # Token hasil rotasi tetap valid.
+    res = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refreshed["refresh_token"]},
+    )
+    assert res.status_code == 200
+
+
+def test_logout_only_revokes_target_session(client, login_payload):
+    login1 = client.post("/api/v1/auth/login", json=login_payload).json()
+    login2 = client.post("/api/v1/auth/login", json=login_payload).json()
+    client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": login1["refresh_token"]},
+    )
+    res = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login1["refresh_token"]},
+    )
+    assert res.status_code == 401
+    res = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login2["refresh_token"]},
+    )
+    assert res.status_code == 200
+
+
+def test_logout_idempotent(client, login_payload):
+    login = client.post("/api/v1/auth/login", json=login_payload).json()
+    first = client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert first.status_code == 204
+    second = client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": login["refresh_token"]},
+    )
+    assert second.status_code == 204

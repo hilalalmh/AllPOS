@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/receipt.dart';
@@ -8,7 +9,8 @@ import '../models/user.dart';
 import '../services/printer_service.dart';
 
 class SessionStore {
-  SessionStore(this._prefs);
+  SessionStore(this._prefs, {FlutterSecureStorage? secureStorage})
+      : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   static const _accessKey = 'session.access_token';
   static const _refreshKey = 'session.refresh_token';
@@ -21,10 +23,34 @@ class SessionStore {
   static const _storeProfileKey = 'store.profile';
 
   final SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage;
 
-  String? get accessToken => _prefs.getString(_accessKey);
+  // Token di-cache di memori; persistensi di Android Keystore via
+  // flutter_secure_storage, bukan plaintext di SharedPreferences.
+  String? _accessToken;
+  String? _refreshToken;
 
-  String? get refreshToken => _prefs.getString(_refreshKey);
+  /// Muat token (dengan migrasi dari penyimpanan lama) sebelum app berjalan.
+  Future<void> init() async {
+    final legacyAccess = _prefs.getString(_accessKey);
+    final legacyRefresh = _prefs.getString(_refreshKey);
+    if (legacyAccess != null || legacyRefresh != null) {
+      if (legacyAccess != null) {
+        await _secureStorage.write(key: _accessKey, value: legacyAccess);
+      }
+      if (legacyRefresh != null) {
+        await _secureStorage.write(key: _refreshKey, value: legacyRefresh);
+      }
+      await _prefs.remove(_accessKey);
+      await _prefs.remove(_refreshKey);
+    }
+    _accessToken = await _secureStorage.read(key: _accessKey);
+    _refreshToken = await _secureStorage.read(key: _refreshKey);
+  }
+
+  String? get accessToken => _accessToken;
+
+  String? get refreshToken => _refreshToken;
 
   User? get user {
     final raw = _prefs.getString(_userKey);
@@ -37,8 +63,10 @@ class SessionStore {
   }
 
   Future<void> saveTokens(String accessToken, String refreshToken) async {
-    await _prefs.setString(_accessKey, accessToken);
-    await _prefs.setString(_refreshKey, refreshToken);
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    await _secureStorage.write(key: _accessKey, value: accessToken);
+    await _secureStorage.write(key: _refreshKey, value: refreshToken);
   }
 
   Future<void> saveUser(User user) async {
@@ -46,8 +74,10 @@ class SessionStore {
   }
 
   Future<void> clear() async {
-    await _prefs.remove(_accessKey);
-    await _prefs.remove(_refreshKey);
+    _accessToken = null;
+    _refreshToken = null;
+    await _secureStorage.delete(key: _accessKey);
+    await _secureStorage.delete(key: _refreshKey);
     await _prefs.remove(_userKey);
   }
 

@@ -4,15 +4,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/app_config.dart';
 import 'providers/providers.dart';
+import 'repositories/session_store.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  final sessionStore = SessionStore(prefs);
+  await sessionStore.init();
   runApp(
     ProviderScope(
       overrides: [
         sharedPrefsProvider.overrideWithValue(prefs),
+        sessionStoreProvider.overrideWithValue(sessionStore),
       ],
       child: const SistemPosApp(),
     ),

@@ -13,7 +13,7 @@ from app.models import (
 from app.repositories.role_repository import RoleRepository
 from app.services.auth_service import create_user
 
-DEFAULT_OWNER_USERNAME = "owner"
+DEFAULT_OWNER_USERNAME = settings.SEED_ADMIN_USERNAME
 SEED_ADMIN_PASSWORD = settings.SEED_ADMIN_PASSWORD
 
 
@@ -101,6 +101,11 @@ def seed_demo_products(db: Session) -> None:
 
 
 def run_seed() -> None:
+    if SEED_ADMIN_PASSWORD == "admin123" and settings.ENVIRONMENT != "production":
+        print(
+            "WARN: SEED_ADMIN_PASSWORD masih default (admin123). "
+            "Ganti sebelum dipakai nyata."
+        )
     with SessionLocal() as db:
         try:
             seed_roles(db)

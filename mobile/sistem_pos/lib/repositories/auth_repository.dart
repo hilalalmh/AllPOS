@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import '../models/user.dart';
 import '../services/api_client.dart';
 import 'session_store.dart';
@@ -26,5 +30,22 @@ class AuthRepository {
     return user;
   }
 
-  Future<void> logout() => store.clear();
+  Future<void> logout() async {
+    // Cabut refresh token di server (best effort), lalu bersihkan lokal.
+    final token = store.refreshToken;
+    if (token != null && token.isNotEmpty) {
+      try {
+        await http
+            .post(
+              Uri.parse('${api.baseUrl}/api/v1/auth/logout'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'refresh_token': token}),
+            )
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // Kegagalan jaringan tidak menghalangi logout lokal.
+      }
+    }
+    await store.clear();
+  }
 }

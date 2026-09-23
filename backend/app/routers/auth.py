@@ -9,7 +9,12 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import User
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    LogoutRequest,
+    RefreshRequest,
+    TokenResponse,
+)
 from app.schemas.user import UserMe
 from app.services.audit_service import record_audit
 from app.services.auth_service import (
@@ -90,6 +95,12 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
             detail=str(exc),
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
+    AuthService(db).revoke(payload.refresh_token)
+    db.commit()
 
 
 @router.get("/me", response_model=UserMe)

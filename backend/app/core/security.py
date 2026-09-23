@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import bcrypt
 import jwt
@@ -42,11 +43,14 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
+def _create_token(
+    subject: str, token_type: str, expires_delta: timedelta, jti: str
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "type": token_type,
+        "jti": jti,
         "iat": now,
         "exp": now + expires_delta,
     }
@@ -57,17 +61,30 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> st
 
 def create_access_token(user_id: int) -> tuple[str, int]:
     expires = timedelta(minutes=settings.JWT_EXPIRES_MINUTES)
-    token = _create_token(str(user_id), ACCESS_TOKEN_TYPE, expires)
+    token = _create_token(
+        str(user_id), ACCESS_TOKEN_TYPE, expires, jti=uuid4().hex
+    )
     return token, int(expires.total_seconds())
 
 
-def create_refresh_token(user_id: int) -> tuple[str, int]:
+def create_refresh_token(user_id: int) -> tuple[str, str]:
     expires = timedelta(days=settings.JWT_REFRESH_EXPIRES_DAYS)
-    token = _create_token(str(user_id), REFRESH_TOKEN_TYPE, expires)
-    return token, int(expires.total_seconds())
+    jti = uuid4().hex
+    token = _create_token(str(user_id), REFRESH_TOKEN_TYPE, expires, jti=jti)
+    return token, jti
 
 
 def decode_token(token: str, expected_type: str) -> int | None:
+    payload = decode_token_payload(token, expected_type)
+    if payload is None:
+        return None
+    try:
+        return int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def decode_token_payload(token: str, expected_type: str) -> dict | None:
     try:
         payload = jwt.decode(
             token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
@@ -76,7 +93,4 @@ def decode_token(token: str, expected_type: str) -> int | None:
         return None
     if payload.get("type") != expected_type:
         return None
-    try:
-        return int(payload["sub"])
-    except (KeyError, TypeError, ValueError):
-        return None
+    return payload

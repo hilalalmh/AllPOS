@@ -32,3 +32,8 @@ mobile/**/.metadata
 
 # Database local
 *.sqlite3
+
+# Android signing (private; sebaiknya di-generate per developer)
+mobile/**/android/key.properties
+**/*.jks
+**/*.keystore

@@ -33,3 +33,6 @@ class User(Base):
     )
 
     role: Mapped["Role"] = relationship(back_populates="users")  # type: ignore[name-defined]
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(  # type: ignore[name-defined]
+        back_populates="user"
+    )

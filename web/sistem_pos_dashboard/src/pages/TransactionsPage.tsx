@@ -65,7 +65,14 @@ export default function TransactionsPage() {
         page,
         page_size: PAGE_SIZE,
       });
-      if (seq === seqRef.current) setData(res);
+      if (seq === seqRef.current) {
+        setData(res);
+        // Halaman terakhir kosong (transaksi terakhir baru saja dibatalkan/
+        // diffilter): mundur satu halaman agar tidak terjebak di daftar kosong.
+        if (res.items.length === 0 && page > 1) {
+          setPage((x) => Math.max(1, x - 1));
+        }
+      }
     } catch (err) {
       if (seq === seqRef.current) {
         console.error(err);

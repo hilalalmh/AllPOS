@@ -55,6 +55,18 @@ def test_update_category(client, owner_headers):
     assert res.json()["name"] == "Renamed"
 
 
+def test_update_category_null_not_nullable_rejected(client, owner_headers):
+    created = client.post(
+        "/api/v1/categories", json={"name": "Null me"}, headers=owner_headers
+    ).json()
+    res = client.put(
+        f"/api/v1/categories/{created['id']}",
+        json={"name": None},
+        headers=owner_headers,
+    )
+    assert res.status_code == 422
+
+
 def test_delete_category_empty(client, owner_headers):
     created = client.post(
         "/api/v1/categories", json={"name": "ToDelete"}, headers=owner_headers
@@ -166,6 +178,25 @@ def test_update_product(client, owner_headers):
     body = res.json()
     assert body["price"] == 25000.0
     assert body["description"] == "desc"
+
+
+def test_update_product_null_not_nullable_rejected(client, owner_headers):
+    created = _make_product(client, owner_headers, name="Y", sku="YY")
+    pid = created.json()["id"]
+    # Pydantic mengizinkan None karena field optional; kolom NOT NULL tidak
+    # boleh di-null → 422, bukan 500 IntegrityError.
+    res = client.put(
+        f"/api/v1/products/{pid}",
+        json={"name": None},
+        headers=owner_headers,
+    )
+    assert res.status_code == 422
+    res = client.put(
+        f"/api/v1/products/{pid}",
+        json={"price": None},
+        headers=owner_headers,
+    )
+    assert res.status_code == 422
 
 
 def test_delete_product_soft(client, owner_headers):

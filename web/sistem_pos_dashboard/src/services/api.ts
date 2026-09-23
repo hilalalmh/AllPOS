@@ -104,7 +104,8 @@ apiClient.interceptors.response.use(
         authGeneration: getAuthGeneration(),
       });
       // Retry aman hanya untuk request idempotent atau pembuatan transaksi
-      // (dilindungi local_ref di sisi server). Request POST lain tidak boleh
+      // (dilindungi local_ref di sisi server). Request POST lain — termasuk
+      // POST /transactions/{id}/cancel yang non-idempoten — tidak boleh
       // diulang otomatis agar efek samping tidak berlipat.
       const method = (config.method ?? "get").toUpperCase();
       const isIdempotent =
@@ -114,7 +115,7 @@ apiClient.interceptors.response.use(
         method === "PUT" ||
         method === "PATCH" ||
         method === "DELETE";
-      const isTxCreate = method === "POST" && url.includes("/transactions");
+      const isTxCreate = method === "POST" && url === "/transactions";
       if (!isIdempotent && !isTxCreate) {
         return Promise.reject(error);
       }

@@ -35,6 +35,14 @@ class TransactionSyncService {
     return e.statusCode >= 500;
   }
 
+  /// 401/403 = masalah sesi: token habis/akun di-nonaktifkan server. Sesi bisa
+  /// pulih setelah login/refresh ulang, jadi error ini TIDAK layak dianggap
+  /// kegagalan permanen (baik di checkout maupun saat sync).
+  bool _isSessionError(Object e) {
+    if (e is! ApiException) return false;
+    return e.statusCode == 401 || e.statusCode == 403;
+  }
+
   static num _round2(num value) => (value * 100).round() / 100;
 
   Future<PayResult> createWithFallback({
@@ -67,7 +75,11 @@ class TransactionSyncService {
       );
       return PayResult.fromTransaction(transaction);
     } catch (e) {
-      if (!_isNetworkError(e) && !_isAmbiguousError(e)) rethrow;
+      if (!_isNetworkError(e) &&
+          !_isAmbiguousError(e) &&
+          !_isSessionError(e)) {
+        rethrow;
+      }
       final pending = await store.insert(
         PendingTransaction(
           localRef: ref,
@@ -109,7 +121,7 @@ class TransactionSyncService {
       'payment_method': paymentMethod,
       'paid_amount': _round2(paidAmount),
       'discount': _round2(discount),
-      if (localRef != null) 'local_ref': localRef,
+      'local_ref': ?localRef,
       if (createdAtLocal != null) 'created_at_local': createdAtLocal.toIso8601String(),
     });
     return Transaction.fromJson(response as Map<String, dynamic>);
@@ -141,13 +153,20 @@ class TransactionSyncService {
         await store.markSynced(item.id!, transaction.invoiceNumber);
         synced++;
       } catch (e) {
-        if (e is ApiException && e.statusCode >= 400 && e.statusCode < 500) {
+        // 401/403 tidak dihitung gagal permanen: sesi bisa pulih setelah
+        // login ulang, item tetap PENDING untuk di-replay (aman berkat
+        // local_ref yang stabil).
+        if (e is ApiException &&
+            e.statusCode >= 400 &&
+            e.statusCode < 500 &&
+            !_isSessionError(e)) {
           failed++;
           firstError ??= e.message;
           await store.markFailed(item.id!, e.message);
         } else {
-          // Network/5xx bersifat transien: baris tetap PENDING (aman di-replay
-          // berkat local_ref), jangan dihitung sebagai kegagalan permanen.
+          // Network/5xx/401/403 bersifat transien: baris tetap PENDING (aman
+          // di-replay berkat local_ref), jangan dihitung sebagai kegagalan
+          // permanen.
           firstError ??= _message(e);
         }
       }

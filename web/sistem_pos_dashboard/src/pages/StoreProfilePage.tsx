@@ -66,6 +66,7 @@ export default function StoreProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || loading) return;
     setSaving(true);
     setSaveError(null);
     setSuccess(null);

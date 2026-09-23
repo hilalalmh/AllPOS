@@ -57,6 +57,11 @@ export default function UsersPage() {
       if (seq === seqRef.current) {
         setUsers(res.items);
         setTotal(res.total);
+        // Halaman terakhir kosong (item terakhir baru saja dihapus): mundur
+        // satu halaman agar pengguna tidak terjebak di daftar kosong.
+        if (res.items.length === 0 && page > 1) {
+          setPage((x) => Math.max(1, x - 1));
+        }
       }
     } catch (err) {
       if (seq === seqRef.current) {
@@ -101,6 +106,7 @@ export default function UsersPage() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!form.full_name.trim()) return;
     if (!editUser) {
       if (!form.username.trim() || form.password.length < 6) return;

@@ -40,16 +40,24 @@ class AuthRepository {
     // bersihkan lokal secepatnya agar logout tidak menggantung 5 detik.
     final token = store.refreshToken;
     if (token != null && token.isNotEmpty) {
-      unawaited(
-        http
-            .post(
-              Uri.parse('${api.baseUrl}/api/v1/auth/logout'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'refresh_token': token}),
-            )
-            .timeout(const Duration(seconds: 5)),
-      );
+      unawaited(_revokeRefreshToken(token));
     }
     await store.clear();
+  }
+
+  Future<void> _revokeRefreshToken(String token) async {
+    try {
+      await http
+          .post(
+            Uri.parse('${api.baseUrl}/api/v1/auth/logout'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refresh_token': token}),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Best effort: server tak terjangkau (offline/5xx) — logout lokal tetap
+      // dijalankan. Gagal mencabut token di sini tidak boleh melempar error
+      // tak tertangani dari zona unawaited.
+    }
   }
 }

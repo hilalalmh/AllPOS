@@ -13,7 +13,11 @@ CORS origin dev: `http://localhost:5173` dan `http://127.0.0.1:5173`.
 | GET | `/api/v1/health` | - | - | Status sehat backend & DB |
 | POST | `/api/v1/auth/login` | - | - | Login, dapat token |
 | POST | `/api/v1/auth/refresh` | - | - | Tukar refresh → token baru |
+| POST | `/api/v1/auth/logout` | - | - | Cabut refresh token (best effort, 204) |
 | GET | `/api/v1/auth/me` | Bearer | - | Profil user aktif |
+| GET | `/api/v1/users` | Bearer | OWNER | Daftar pengguna (pager + search) |
+| POST | `/api/v1/users` | Bearer | OWNER | Buat pengguna |
+| PUT | `/api/v1/users/{id}` | Bearer | OWNER | Ubah pengguna (nama/role/status/password) |
 | GET | `/api/v1/categories` | Bearer | - | Daftar kategori aktif |
 | POST | `/api/v1/categories` | Bearer | OWNER | Buat kategori |
 | PUT | `/api/v1/categories/{id}` | Bearer | OWNER | Ubah kategori |
@@ -30,7 +34,7 @@ CORS origin dev: `http://localhost:5173` dan `http://127.0.0.1:5173`.
 | GET | `/api/v1/dashboard/summary` | Bearer | OWNER | Ringkasan penjualan periode |
 | GET | `/api/v1/dashboard/sales` | Bearer | OWNER | Deret penjualan per hari/bulan |
 | GET | `/api/v1/dashboard/best-sellers` | Bearer | OWNER | Ranking menu terlaris |
-| GET | `/api/v1/store-profile` | Bearer | - | Profil toko (singleton id=1) |
+: | GET | `/api/v1/store-profile` | Bearer | - | Profil toko (singleton id=1) |
 | PUT | `/api/v1/store-profile` | Bearer | OWNER | Perbarui profil toko |
 | GET | `/api/v1/audit-logs` | Bearer | OWNER | Audit trail (filter + pager) |
 | GET | `/api/v1/reports/transactions.csv` | Bearer | OWNER | Export transaksi CSV |
@@ -128,6 +132,7 @@ Query params:
 |-------|------|-----------|
 | `q` | string | Cari nama/SKU (ilike) |
 | `category_id` | int | Filter kategori |
+| `include_inactive` | bool | Default `false`. Bila `true` → hanya akses OWNER, sertakan produk `is_active=false` |
 | `page` | int (>=1) | Halaman, default 1 |
 | `page_size` | int (1..100) | Default 20 |
 
@@ -249,7 +254,7 @@ Response `200`; `404` tidak ada; `403` kasir mengakses transaksi kasir lain.
 
 ### POST `/api/v1/transactions/{id}/cancel`
 
-Mengubah status `PAID`/`PENDING` → `CANCELLED` + audit log `transaction.cancel`. Error `404` transaksi tidak ada; `422` jika sudah `CANCELLED` (tidak bisa dibatalkan dua kali).
+Mengubah status `PAID`/`PENDING` → `CANCELLED` + audit log `transaction.cancel`. Error `404` transaksi tidak ada; `400` jika sudah `CANCELLED` (tidak bisa dibatalkan dua kali). Response `200` dengan transaksi terbaru.
 
 ## Dashboard (Statistik)
 

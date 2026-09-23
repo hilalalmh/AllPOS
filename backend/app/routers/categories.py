@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -24,6 +25,10 @@ def _handle_service_error(exc: Exception) -> None:
         raise HTTPException(status_code=404, detail=str(exc))
     if isinstance(exc, DuplicateCategoryNameError):
         raise HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, IntegrityError):
+        raise HTTPException(
+            status_code=409, detail="Data sudah digunakan (duplikat)."
+        )
     raise exc
 
 

@@ -18,6 +18,10 @@ interface StoreProfileState {
 }
 
 let loadStartIf: Promise<void> | null = null;
+// Naik saat reset/logout: load yang sudah berjalan dari sesi LAMA tidak boleh
+// menulis profile-nya ke store setelah di-reset (mis. profile toko baru milik
+// pengguna yang baru login) — hasil basi harus dibuang.
+let storeGeneration = 0;
 
 export const useStoreProfileStore = create<StoreProfileState>((set) => ({
   profile: null,
@@ -29,15 +33,18 @@ export const useStoreProfileStore = create<StoreProfileState>((set) => ({
       await loadStartIf;
       return;
     }
+    const gen = ++storeGeneration;
     set({ loading: true, error: null });
     const run = (async () => {
       try {
         const profile = await fetchStoreProfile();
-        set({ profile, loading: false });
+        if (gen === storeGeneration) set({ profile, loading: false });
       } catch (err) {
-        set({ error: (err as Error).message, loading: false });
+        if (gen === storeGeneration) {
+          set({ error: (err as Error).message, loading: false });
+        }
       } finally {
-        loadStartIf = null;
+        if (gen === storeGeneration) loadStartIf = null;
       }
     })();
     loadStartIf = run;
@@ -56,6 +63,8 @@ export const useStoreProfileStore = create<StoreProfileState>((set) => ({
   },
 
   reset: () => {
+    storeGeneration++;
+    loadStartIf = null;
     set({ profile: null, loading: false, error: null });
   },
 }));

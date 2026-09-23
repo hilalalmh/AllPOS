@@ -42,6 +42,7 @@ export default function CategoriesPage() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!edit || !edit.name.trim()) return;
     setSaving(true);
     setError(null);
@@ -62,7 +63,7 @@ export default function CategoriesPage() {
   }
 
   async function handleDelete() {
-    if (!confirmDelete) return;
+    if (!confirmDelete || saving) return;
     setSaving(true);
     setError(null);
     try {

@@ -61,7 +61,14 @@ export default function AuditTrailPage() {
         page,
         page_size: PAGE_SIZE,
       });
-      if (seq === seqRef.current) setData(res);
+      if (seq === seqRef.current) {
+        setData(res);
+        // Page terakhir kosong setelah filter/pembersihan data: mundur satu
+        // halaman agar tidak menampilkan daftar kosong dengan tombol aktif.
+        if (res.items.length === 0 && page > 1) {
+          setPage((x) => Math.max(1, x - 1));
+        }
+      }
     } catch (err) {
       if (seq === seqRef.current) {
         console.error(err);

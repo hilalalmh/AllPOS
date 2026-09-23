@@ -71,6 +71,11 @@ export default function ProductsPage() {
       if (seq === seqRef.current) {
         setProducts(res.items);
         setTotal(res.total);
+        // Halaman terakhir kosong (item terakhir baru saja dihapus): mundur
+        // satu halaman agar pengguna tidak terjebak di daftar kosong.
+        if (res.items.length === 0 && page > 1) {
+          setPage((x) => Math.max(1, x - 1));
+        }
       }
     } catch (err) {
       if (seq === seqRef.current) {
@@ -135,6 +140,7 @@ export default function ProductsPage() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!form.name.trim() || form.category_id === 0 || form.price <= 0) return;
     setSaving(true);
     setError(null);
@@ -163,7 +169,7 @@ export default function ProductsPage() {
   }
 
   async function handleDelete() {
-    if (!confirmDelete) return;
+    if (!confirmDelete || saving) return;
     setSaving(true);
     setError(null);
     try {

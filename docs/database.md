@@ -151,7 +151,7 @@ Snapshot `product_name` + `price` membuat riwayat transaksi tidak berubah walau 
 | store_name | varchar(100) | default `SISTEM POS` |
 | address | varchar(255) | nullable |
 | phone | varchar(30) | nullable |
-| footer | varchar(255) | default `TERIMA KASIH ~ SILAHKAN DATANG KEMBALI`, dipakai di footer struk |
+| footer | varchar(120) | default `TERIMA KASIH ~ SILAHKAN DATANG KEMBALI`, dipakai di footer struk |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 

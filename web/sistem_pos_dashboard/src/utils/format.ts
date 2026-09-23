@@ -1,9 +1,11 @@
 export function formatRupiah(value: number): string {
+  // Tampilkan sen bila ada (konsisten dengan formatMoney & struk) agar nilai
+  // seperti 18.000,5 tidak diam-diam dibulatkan ke bawah oleh Intl.
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 

@@ -10,6 +10,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -41,6 +42,12 @@ def _handle_service_error(exc: Exception) -> None:
         raise HTTPException(status_code=404, detail=str(exc))
     if isinstance(exc, DuplicateSkuError):
         raise HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, IntegrityError):
+        # Race: dua create/update berbarengan sama-sama lolos pre-check lalu
+        # bentrok di constraint UNIQUE (SKU/...). Laporkan sebagai 409, bukan 500.
+        raise HTTPException(
+            status_code=409, detail="Data sudah digunakan (duplikat)."
+        )
     raise exc
 
 

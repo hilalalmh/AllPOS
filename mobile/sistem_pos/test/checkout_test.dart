@@ -122,7 +122,7 @@ void main() {
       expect(formatRupiah(30000), 'Rp30.000');
       expect(formatRupiah(1234567), 'Rp1.234.567');
       expect(formatRupiah(0), 'Rp0');
-      expect(formatRupiah(18000.5), 'Rp18.000');
+      expect(formatRupiah(18000.5), 'Rp18.000,50');
     });
   });
 }

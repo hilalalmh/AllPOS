@@ -254,3 +254,28 @@ def test_local_ref_conflict_without_ref_creates_separate(client, kasir1):
         "/api/v1/transactions", headers=kasir1
     ).json()
     assert other["total"] >= 1
+
+
+def test_local_ref_replay_denied_for_other_cashier(client, kasir1, kasir2):
+    payload = {**CASH_ESKOPI, "local_ref": "TX-LOCAL-OWNED-1"}
+    _create(client, kasir1, payload)
+    # Kasir lain tidak boleh "menebak" local_ref kasir 1 (enumerasi lintas-kasir).
+    res = _create(client, kasir2, payload)
+    assert res.status_code == 409
+
+
+def test_local_ref_replay_conflicts_on_different_items(client, kasir1):
+    payload = {**CASH_ESKOPI, "local_ref": "TX-LOCAL-ITEMS-1"}
+    _create(client, kasir1, payload)
+    # Uang identik (subtotal/discount/total/paid sama) tapi isi keranjang beda
+    # (note berbeda) → pemilik yang sama pun harus ditolak (bukan idempoten).
+    replay = _create(
+        client,
+        kasir1,
+        {
+            **CASH_ESKOPI,
+            "local_ref": "TX-LOCAL-ITEMS-1",
+            "items": [{"product_id": 1, "quantity": 2, "note": "tambahan"}],
+        },
+    )
+    assert replay.status_code == 409

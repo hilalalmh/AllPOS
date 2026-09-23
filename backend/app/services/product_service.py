@@ -33,6 +33,12 @@ class ProductService:
         self.categories = CategoryRepository(db)
         self.products = ProductRepository(db)
 
+    # Kolom NOT NULL tidak boleh di-update ke null (mis. payload eksplisit
+    # {"name": null}) — pydantic mengizinkan None karena optional, jadi dicegah
+    # di sini dengan 422 agar tidak memicu 500 IntegrityError di flush.
+    _NON_NULLABLE_PRODUCT_FIELDS = frozenset({"category_id", "name", "price", "is_active"})
+    _NON_NULLABLE_CATEGORY_FIELDS = frozenset({"name", "is_active"})
+
     # ---- Categories ----
 
     def list_categories(self, active_only: bool = True) -> list[Category]:
@@ -62,6 +68,11 @@ class ProductService:
         if category is None:
             raise CategoryNotFoundError("Kategori tidak ditemukan.")
         data = payload.model_dump(exclude_unset=True)
+        for field in self._NON_NULLABLE_CATEGORY_FIELDS & data.keys():
+            if data[field] is None:
+                raise HTTPException(
+                    status_code=422, detail=f"{field} tidak boleh bernilai null."
+                )
         if "name" in data and data["name"] != category.name:
             existing = self.categories.get_by(name=data["name"])
             if existing is not None:
@@ -133,6 +144,11 @@ class ProductService:
         if product is None:
             raise ProductNotFoundError("Produk tidak ditemukan.")
         data = payload.model_dump(exclude_unset=True)
+        for field in self._NON_NULLABLE_PRODUCT_FIELDS & data.keys():
+            if data[field] is None:
+                raise HTTPException(
+                    status_code=422, detail=f"{field} tidak boleh bernilai null."
+                )
 
         if "category_id" in data and data["category_id"] is not None:
             self._ensure_category_exists(data["category_id"])

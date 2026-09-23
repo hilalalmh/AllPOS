@@ -203,6 +203,40 @@ void main() {
     expect(result.reference, isNotEmpty);
   });
 
+  test('401 di checkout jatuh ke antrian offline (sesi habis saat bayar)', () async {
+    final service = buildService(_FakeApi(failStatus: 401));
+    final result = await service.createWithFallback(
+      items: sampleItems(),
+      paymentMethod: 'CASH',
+      paidAmount: 100000,
+      discount: 0,
+    );
+    // Pembayaran tunai sudah diterima di kas: 401 (sesi habis di tengah
+    // transaksi) tidak boleh menghilangkan penjualan — antrikan offline.
+    expect(result.isOffline, isTrue);
+    expect((await store.all()).single.status, 'PENDING');
+  });
+
+  test('syncAll 401 tidak menandai FAILED permanen (tetap PENDING)', () async {
+    final service = buildService(_FakeApi(failNetwork: true));
+    await service.createWithFallback(
+      items: sampleItems(),
+      paymentMethod: 'CASH',
+      paidAmount: 50000,
+      discount: 0,
+    );
+
+    final syncService = buildService(_FakeApi(failStatus: 401));
+    final outcome = await syncService.syncAll();
+    expect(outcome.synced, 0);
+    expect(outcome.failed, 0);
+    expect(outcome.error, isNotNull);
+    final pending = await store.all();
+    // Sesuai desain untuk sesi 401: tetap PENDING, bukan FAILED, agar bisa
+    // di-replay setelah login ulang.
+    expect(pending.single.isPending, isTrue);
+  });
+
   test('store CRUD dasar', () async {
     final pending = await store.insert(
       PendingTransaction(

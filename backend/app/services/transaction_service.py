@@ -4,7 +4,7 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     AuditLog,
@@ -93,12 +93,16 @@ class TransactionService:
             # local_ref dibuat unik global (index UNIQUE); dedup tidak diskoping
             # per-kasir agar 409 antar-kasir yang ref-nya bentrok tidak membingungkan.
             existing = self.db.scalar(
-                select(Transaction).where(
+                select(Transaction)
+                .options(selectinload(Transaction.items))
+                .where(
                     Transaction.local_ref == payload.local_ref,
                 )
             )
             if existing is not None:
-                self._assert_replay_matches(existing, subtotal, discount, total, paid)
+                self._assert_replay_matches(
+                    existing, cashier, payload, subtotal, discount, total, paid
+                )
                 return existing
 
         for attempt in range(5):
@@ -119,13 +123,15 @@ class TransactionService:
                 self.db.rollback()
                 if payload.local_ref is not None:
                     existing = self.db.scalar(
-                        select(Transaction).where(
+                        select(Transaction)
+                        .options(selectinload(Transaction.items))
+                        .where(
                             Transaction.local_ref == payload.local_ref,
                         )
                     )
                     if existing is not None:
                         self._assert_replay_matches(
-                            existing, subtotal, discount, total, paid
+                            existing, cashier, payload, subtotal, discount, total, paid
                         )
                         return existing
                 if attempt == 4:
@@ -139,20 +145,66 @@ class TransactionService:
         )
 
     @staticmethod
+    def _request_fingerprint(payload: TransactionCreateRequest) -> tuple:
+        items = tuple(
+            sorted(
+                (
+                    (i.product_id, i.quantity, i.note or "")
+                    for i in payload.items
+                ),
+                key=lambda t: (t[0], t[1], t[2]),
+            )
+        )
+        return (items, payload.payment_method.value)
+
+    @staticmethod
+    def _transaction_fingerprint(existing: Transaction) -> tuple:
+        items = tuple(
+            sorted(
+                (
+                    (i.product_id, i.quantity, i.note or "")
+                    for i in existing.items
+                ),
+                key=lambda t: (t[0], t[1], t[2]),
+            )
+        )
+        return (items, existing.payment_method)
+
+    @staticmethod
     def _assert_replay_matches(
         existing: Transaction,
+        cashier: User,
+        payload: TransactionCreateRequest,
         subtotal: Decimal,
         discount: Decimal,
         total: Decimal,
         paid: Decimal,
     ) -> None:
-        """Replay local_ref harus cocok dengan transaksi asli, jika tidak → 409."""
+        """Replay local_ref harus milik kasir yang sama + isi identik, selain itu → 409.
+
+        Ownership dicek agar seorang kasir tidak bisa memanfaatkan local_ref kasir
+        lain untuk "menebak" apakah ref itu ada (enumerasi lintas-kasir) sekaligus
+        mencegah bocornya detail transaksi milik kasir lain lewat replay.
+        """
+        if existing.cashier_id != cashier.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="local_ref sudah dipakai untuk transaksi lain.",
+            )
         if (
             (existing.subtotal or Decimal("0")) != subtotal
             or (existing.discount or Decimal("0")) != discount
             or (existing.total or Decimal("0")) != total
             or (existing.paid_amount or Decimal("0")) != paid
+            or existing.payment_method != payload.payment_method.value
         ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="local_ref sudah dipakai untuk transaksi dengan isi berbeda.",
+            )
+        if TransactionService._transaction_fingerprint(
+            existing
+        ) != TransactionService._request_fingerprint(payload):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="local_ref sudah dipakai untuk transaksi dengan isi berbeda.",

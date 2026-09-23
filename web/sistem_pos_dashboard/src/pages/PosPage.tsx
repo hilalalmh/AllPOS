@@ -5,6 +5,7 @@ import { fetchCategories } from "../services/categories";
 import { fetchProducts } from "../services/products";
 import { createTransaction } from "../services/transactions";
 import { useAuthStore } from "../stores/authStore";
+import { useStoreProfileStore } from "../stores/storeProfileStore";
 import type {
   Category,
   PaymentMethod,
@@ -26,6 +27,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 export default function PosPage() {
   const user = useAuthStore((s) => s.user);
+  const storeProfileLoad = useStoreProfileStore((s) => s.load);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
@@ -42,6 +44,7 @@ export default function PosPage() {
 
   useEffect(() => {
     let cancelled = false;
+    storeProfileLoad();
     Promise.all([fetchProducts({ page_size: 100 }), fetchCategories()])
       .then(([productsData, categoriesData]) => {
         if (cancelled) return;
@@ -400,10 +403,16 @@ export function ReceiptTicket({
   tx: Transaction;
   cashier: string;
 }) {
+  const profile = useStoreProfileStore((s) => s.profile);
+  const storeName = profile?.store_name || "SISTEM POS";
+  const storeInfo = [profile?.address, profile?.phone]
+    .filter(Boolean)
+    .join(" • ");
+
   return (
     <div className="font-mono text-xs leading-tight" style={{ width: "58mm" }}>
-      <p className="text-center font-bold">SISTEM POS</p>
-      <p className="text-center">Jl. Contoh No. 1 — Kota</p>
+      <p className="text-center font-bold">{storeName}</p>
+      {storeInfo && <p className="text-center">{storeInfo}</p>}
       <p className="text-center">{formatDateTime(tx.created_at)}</p>
       <div className="my-1 border-t border-dashed" />
       <p>
@@ -430,7 +439,7 @@ export function ReceiptTicket({
       </p>
       <p>Kembalian: {formatMoney(tx.change_amount)}</p>
       <div className="my-1 border-t border-dashed" />
-      <p className="text-center">Terima kasih!</p>
+      <p className="text-center">{profile?.footer || "Terima kasih!"}</p>
     </div>
   );
 }

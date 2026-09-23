@@ -11,12 +11,14 @@ import {
   cancelTransaction,
   fetchTransactions,
 } from "../services/transactions";
+import { downloadReport } from "../services/audit";
 import type {
   PaymentMethod,
   Transaction,
   TransactionList,
 } from "../types";
 import { formatDateTime, formatRupiah, todayISO } from "../utils/format";
+import { useAuthStore } from "../stores/authStore";
 
 const STATUSES = ["PAID", "PENDING", "CANCELLED"] as const;
 const METHODS: PaymentMethod[] = ["CASH", "QRIS", "TRANSFER"];
@@ -29,6 +31,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 };
 
 export default function TransactionsPage() {
+  const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
   const [data, setData] = useState<TransactionList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +76,21 @@ export default function TransactionsPage() {
     e.preventDefault();
     setPage(1);
     void load();
+  }
+
+  async function handleExport(format: "csv" | "pdf") {
+    setError(null);
+    try {
+      await downloadReport(format, {
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        payment_method: method || undefined,
+        status: status || undefined,
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Gagal mengunduh laporan.");
+    }
   }
 
   async function handleCancel() {
@@ -149,6 +167,25 @@ export default function TransactionsPage() {
         >
           Terapkan
         </button>
+        <span className="hidden w-px bg-gray-200 sm:block" />
+        {isOwner && (
+          <>
+            <button
+              type="button"
+              onClick={() => handleExport("csv")}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExport("pdf")}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Export PDF
+            </button>
+          </>
+        )}
       </form>
 
       {loading ? (

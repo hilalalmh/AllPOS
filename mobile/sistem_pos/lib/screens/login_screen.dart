@@ -37,6 +37,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authNotifierProvider, (previous, next) {
       if (next.isAuthenticated) {
+        ref.read(storeProfileNotifierProvider.notifier).load();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(builder: (_) => const PosScreen()),
         );

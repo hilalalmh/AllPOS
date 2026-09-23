@@ -13,6 +13,8 @@ const ownerNav = [
   { to: "/transactions", label: "Transaksi" },
   { to: "/products", label: "Produk" },
   { to: "/categories", label: "Kategori" },
+  { to: "/store-profile", label: "Profil Toko" },
+  { to: "/audit", label: "Audit Trail" },
   { to: "/health", label: "Health Check" },
 ];
 

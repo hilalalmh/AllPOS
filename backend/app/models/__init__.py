@@ -1,6 +1,7 @@
 from app.models.audit import AuditLog
 from app.models.product import Category, Product
 from app.models.role import Role, RoleEnum
+from app.models.store_profile import StoreProfile
 from app.models.transaction import (
     Payment,
     PaymentMethod,

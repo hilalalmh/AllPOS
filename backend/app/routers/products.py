@@ -15,13 +15,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_roles
 from app.core.storage import delete_image, save_image
-from app.models import RoleEnum
+from app.models import RoleEnum, User
 from app.schemas.product import (
     ProductCreate,
     ProductList,
     ProductOut,
     ProductUpdate,
 )
+from app.services.audit_service import record_audit
 from app.services.product_service import (
     DuplicateSkuError,
     ProductNotFoundError,
@@ -97,7 +98,7 @@ async def create_product(
     is_active: bool = Form(default=True),
     image: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
-    _: object = Depends(require_roles(RoleEnum.OWNER)),
+    current_user: User = Depends(require_roles(RoleEnum.OWNER)),
 ):
     image_url = None
     if image is not None:
@@ -119,6 +120,15 @@ async def create_product(
         if image_url:
             delete_image(image_url)
         _raise(exc)
+    record_audit(
+        db,
+        user=current_user,
+        action="product.create",
+        entity_type="product",
+        entity_id=product.id,
+        details={"name": product.name, "sku": product.sku},
+    )
+    db.flush()
     return product
 
 
@@ -127,12 +137,21 @@ def update_product(
     product_id: int,
     payload: ProductUpdate,
     service: ProductService = Depends(_get_service),
-    _: object = Depends(require_roles(RoleEnum.OWNER)),
+    current_user: User = Depends(require_roles(RoleEnum.OWNER)),
 ):
     try:
         product = service.update_product(product_id, payload)
     except Exception as exc:
         _raise(exc)
+    record_audit(
+        service.db,
+        user=current_user,
+        action="product.update",
+        entity_type="product",
+        entity_id=product.id,
+        details={"name": product.name, "sku": product.sku},
+    )
+    service.db.flush()
     return product
 
 
@@ -143,9 +162,23 @@ def update_product(
 def delete_product(
     product_id: int,
     service: ProductService = Depends(_get_service),
-    _: object = Depends(require_roles(RoleEnum.OWNER)),
+    current_user: User = Depends(require_roles(RoleEnum.OWNER)),
 ):
+    product = service.get_product(product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Produk tidak ditemukan."
+        )
     try:
         service.delete_product(product_id)
     except Exception as exc:
         _raise(exc)
+    record_audit(
+        service.db,
+        user=current_user,
+        action="product.delete",
+        entity_type="product",
+        entity_id=product_id,
+        details={"name": product.name, "sku": product.sku},
+    )
+    service.db.flush()

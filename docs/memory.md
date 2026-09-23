@@ -35,15 +35,16 @@ scripts\restart_backend.cmd
 
 Detail di README.
 
-### Verifikasi status terakhir (terakhir dicek: PHASE 6 2026-09-23)
+### Verifikasi status terakhir (terakhir dicek: PHASE 7 2026-09-23)
 
 - Backend `http://localhost:8000` hidup (uvicorn --reload); web `http://localhost:5173` hidup (vite, proxy `/api`).
 - `curl http://localhost:8000/api/v1/health` → `{"status":"ok","database":"ok"}`.
-- `flutter analyze` → No issues (0). `flutter test` → 3 passed (struk).
-- `pytest` (backend) → **49 passed** (termasuk dashboard: summary/sales/best-seller).
+- `flutter analyze` → No issues (0). `flutter test` → **24 passed** (struk 4 + cart/transaction 7 + offline sync/store 7 + ApiClient 2 + store profile 4).
+- `pytest` (backend) → **66 passed** (termasuk dashboard, store profile 7, audit 4, reports 6).
 - `npm run lint` & `npm run build` (web) → sukses.
 - `dart run tool/check_api.dart` (dari `mobile/sistem_pos`) → health 200, login 200, products 200.
 - E2E live web: login → transaksi `POS-20260923-0001` → summary dashboard update → kasir 403 dashboard → sukses.
+- **PHASE 7 live**: create transaksi via payload app (`items:[{product_id,quantity}], payment_method, paid_amount, discount`) → `POS-20260923-0002` (CASH, 2 item, diskon 5.000, kembalian 55.000) status PAID; `GET /transactions/{id}` konsisten. `flutter build apk --debug` sukses (3x, termasuk `--dart-define=API_BASE_URL=http://192.168.1.50:8000`). Offline fallback diuji unit test (`SocketException`), belum diuji perangkat offline nyata.
 - **Git**: commit pertama dibuat memuat seluruh source (backend+mobile+web+docs+scripts); `.env`, `uploads/`, `.pytest_cache/`, `build`, `node_modules`, `.venv` di-ignore.
 
 ## Kredensial dev (seed)
@@ -91,10 +92,13 @@ AllPOS/
 
 ## Status Fase
 
-Lihat `docs/roadmap.md`. Yang sudah selesai: PHASE 1–6. **PHASE 7 (integrasi & offline mobile) berikutnya.**
+Lihat `docs/roadmap.md`. Yang sudah selesai: PHASE 1–6. **PHASE 7 SELESAI: cart+checkout+payment success+cetak struk, offline SQLite (queue+sync), dan base URL via `--dart-define` (dengan timeout 20s + normalisasi trailing slash di `ApiClient`). Tersisa: verifikasi manual perangkat Android + printer fisik (butuh HP/printer), dan deps production (keystore, HTTPS).** **PHASE 8 (sebagian) SELESAI: store profile (backend+web+mobile) dan audit trail + export laporan CSV/PDF.**
 
 ## Todo Terbuka / Catatan Kecil
 
-- Ganti `APP_NAME`/branding di backend (mis. nama toko) bila perlu.
-- Verifikasi manual cetak printer fisik (butuh HP + printer Bluetooth); cetak struk web (58mm) via CSS print sudah jalan.
+- **PHASE 8 audit + export LAPORAN SELESAI**: Backend instrumentasi `AuditLog` (`services/audit_service.py` `record_audit` + `AuditService.list_logs`), router `GET /audit-logs` OWNER (filter action/entity/user/tanggal/q, pagination); report `ReportService` + `GET /reports/transactions.csv` & `.pdf` OWNER (reportlab 5.0.1 → requirements). pytest **66 passed**. Web: `AuditTrailPage` `/audit` + tombol Export CSV/PDF di `TransactionsPage` (hanya OWNER), lint+build sukses; live E2E via proxy web: audit total=12, CSV 200, PDF 200 (file: `backend/app/routers/audit.py`, `reports.py`, `schemas/audit.py`, `tests/test_audit.py`, `tests/test_reports.py`; web `services/audit.ts`, `pages/AuditTrailPage.tsx`).
+- **PHASE 8 store profile SELESAI**: Backend `store_profiles` singleton id=1 (`GET` auth / `PUT` OWNER `/api/v1/store-profile`), migrasi alembic `a1b2c3d4e5f6` jalan live. Web: `StoreProfilePage` (OWNER) + zustand `storeProfileStore`; `ReceiptTicket` di `PosPage` kini dinamis, lint+build sukses, live E2E GET→PUT→persist ("Aroma Kopi Nusantara" — DB live berisi nilai ini). Mobile: `models/store_profile.dart`, `repositories/store_profile_repository.dart`, cache `SessionStore` (`store.profile`), `StoreProfileNotifier` (load saat konstruksi & saat login sukses) di `providers.dart` → `receiptServiceProvider` membaca profil (fallback `StoreProfile.defaultProfile` = "SISTEM POS"), `flutter analyze` clean + `flutter test` **24 passed** + `flutter build apk --debug` sukses. Sisa: cetak fisik & offline nyata.
+- **PHASE 7 selesai seluruh fitur kodenya**; sisa hanya uji fisik. `ApiClient` punya `timeout` default 20 detik & memangkas `/` akhir `API_BASE_URL` (test `test/api_client_test.dart`). Build produksi: `flutter build apk --release --dart-define=API_BASE_URL=https://...`.
+- Offline SQLite: `services/offline_transaction_store.dart` (SQLite `pending_transactions`), `services/transaction_sync_service.dart` (`createWithFallback` fallback hanya saat error jaringan/timeout; 4xx tidak jatuh offline), `models/pending_transaction.dart`, `models/transaction.dart` (`CartItemInput` + `PayResult`), `screens/pending_transactions_screen.dart`, `SyncNotifier` di `providers.dart`; deps `sqflite`+`path`, dev `sqflite_common_ffi`. Catatan: **jangan `dart run` script yang impor paket yang menyeret Flutter** (sqflite → `package:flutter`) — verifikasi pakai `flutter test`.
+- Verifikasi manual cetak printer fisik + uji offline nyata di perangkat (butuh HP Android + printer Bluetooth).
 - Endpoint dashboard baru (RBAC OWNER): `/api/v1/dashboard/summary`, `/sales`, `/best-sellers` — file: `backend/app/routers/dashboard.py`, `backend/app/services/dashboard_service.py`, `backend/app/schemas/dashboard.py`, test `backend/tests/test_dashboard.py`.

@@ -76,7 +76,9 @@ Test (pytest) memakai `sistem_pos_test` via `tests/conftest.py` (dependency over
 ## 5. Konfigurasi Mobile (Flutter)
 
 - `API_BASE_URL` lewat `--dart-define`, default `http://10.0.2.2:8000` (emulator). Ganti untuk HP fisik pribadi ke IP LAN komputer: `http://192.168.x.x:8000`.
-- Build APK debug: `flutter build apk --debug`. Build dengan base URL khusus: tambahkan `--dart-define=API_BASE_URL=...`.
+- Build APK debug: `flutter build apk --debug`. Build dengan base URL khusus: tambahkan `--dart-define=API_BASE_URL=https://pos.example.com`.
+- Contoh koneksi produksi: `flutter build apk --release --dart-define=API_BASE_URL=https://pos.example.com` (keystore sendiri; pakai HTTPS, jangan HTTP).
+- `ApiClient` menghapus slash di akhir `API_BASE_URL` otomatis (aman pakai trailing `/`) dan memakai **timeout 20 detik**; saat jaringan bermasalah transaksi **tidak gagal** — masuk antrian SQLite offline dan tersinkron otomatis saat online.
 - **Penting:** project mobile dikunci **AGP 8.11.1 + Gradle 8.14** (`android/settings.gradle.kts`, `gradle-wrapper.properties`) dan `kotlin.incremental=false` di `android/gradle.properties`. JANGAN naikkan ke AGP 9/Gradle 9 (plugin printer lama tidak kompatibel). Plugin `bluetooth_print` = salinan ter-patch di `third_party/`, dikunci via `dependency_overrides` di `pubspec.yaml`.
 
 ## 6. Skrip Launcher (`scripts/`)

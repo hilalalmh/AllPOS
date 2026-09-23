@@ -30,6 +30,11 @@ CORS origin dev: `http://localhost:5173` dan `http://127.0.0.1:5173`.
 | GET | `/api/v1/dashboard/summary` | Bearer | OWNER | Ringkasan penjualan periode |
 | GET | `/api/v1/dashboard/sales` | Bearer | OWNER | Deret penjualan per hari/bulan |
 | GET | `/api/v1/dashboard/best-sellers` | Bearer | OWNER | Ranking menu terlaris |
+| GET | `/api/v1/store-profile` | Bearer | - | Profil toko (singleton id=1) |
+| PUT | `/api/v1/store-profile` | Bearer | OWNER | Perbarui profil toko |
+| GET | `/api/v1/audit-logs` | Bearer | OWNER | Audit trail (filter + pager) |
+| GET | `/api/v1/reports/transactions.csv` | Bearer | OWNER | Export transaksi CSV |
+| GET | `/api/v1/reports/transactions.pdf` | Bearer | OWNER | Export transaksi PDF |
 | GET | `/uploads/{nama_file}` | - | - | File gambar produk |
 
 ## Kode Error Umum
@@ -283,6 +288,70 @@ Query params: `start_date`, `end_date`, `limit` (1..50, default 5). Response `20
 ```
 
 Diurutkan berdasarkan jumlah terjual, lalu pendapatan.
+
+## Profil Toko
+
+### GET `/api/v1/store-profile`
+
+Akses: semua user terautentikasi. Mengembalikan profil toko singleton (`id=1`); jika belum ada, dibuat otomatis dengan default. Response `200`:
+
+```json
+{
+  "id": 1,
+  "store_name": "SISTEM POS",
+  "address": null,
+  "phone": null,
+  "footer": "TERIMA KASIH ~ SILAHKAN DATANG KEMBALI",
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+
+### PUT `/api/v1/store-profile`
+
+Akses: **OWNER**. Body parsial (field optional): `store_name`, `address`, `phone`, `footer`. Menulis audit log `store_profile.update`. Response `200` dengan profil terbaru.
+
+## Audit Trail
+
+### GET `/api/v1/audit-logs`
+
+Akses: **OWNER**. Query params opsional: `action`, `entity_type`, `user_id`, `start_date`, `end_date` (format `YYYY-MM-DD`), `q` (cari aksi), `page`, `page_size`.
+
+Response `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "username": "owner",
+      "action": "auth.login",
+      "entity_type": "user",
+      "entity_id": 1,
+      "details": { "username": "owner" },
+      "created_at": "..."
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+Aksi yang direkam: `auth.login`, `transaction.create`, `transaction.cancel`, `product.create/update/delete`, `category.create/update/delete`, `store_profile.update`, `report.csv`, `report.pdf`.
+
+## Laporan (Export)
+
+Semua endpoint laporan **wajib role OWNER**. Query params opsional sama untuk keduanya: `start_date`, `end_date`, `payment_method`, `status`.
+
+### GET `/api/v1/reports/transactions.csv`
+
+Response `200` `text/csv` dengan header `Content-Disposition: attachment; filename=transactions.csv`. Kolom: `invoice_number, cashier, created_at, payment_method, status, subtotal, discount, total, paid_amount, change_amount`.
+
+### GET `/api/v1/reports/transactions.pdf`
+
+Response `200` `application/pdf` (reportlab) — tabel laporan transaksi + ringkasan total.
 
 ## Upload File
 

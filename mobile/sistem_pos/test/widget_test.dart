@@ -6,7 +6,9 @@ import 'package:sistem_pos/services/receipt_service.dart';
 
 void main() {
   test('buildLines menghasilkan baris struk yang cocok dengan transaksi', () {
-    final service = ReceiptService();
+    final service = ReceiptService(
+      store: const StoreInfo(name: 'Aroma Kopi Nusantara'),
+    );
     final receipt = ReceiptData(
       invoiceNumber: 'POS-20260922-0001',
       cashierName: 'kasir1',
@@ -31,12 +33,44 @@ void main() {
 
     expect(lines, isNotEmpty);
     final contents = lines.map((l) => l.content ?? '').join('\n');
+    expect(contents, contains('Aroma Kopi Nusantara'));
     expect(contents, contains('POS-20260922-0001'));
     expect(contents, contains('kasir1'));
     expect(contents, contains('Es Kopi'));
     expect(contents, contains('2 x 18.000'));
     expect(contents, contains('Tunai'));
     expect(contents, contains('4.000'));
+  });
+
+  test('header dan footer struk memakai profil toko', () {
+    final service = ReceiptService(
+      store: const StoreInfo(
+        name: 'Kedai Kopi Tetangga',
+        address: 'Jl. Melati No. 12',
+        phone: '0812-0000-1111',
+        footer: 'TERIMA KASIH ~ SAMPAI JUMPA',
+      ),
+    );
+    final lines = service.buildLines(
+      ReceiptData(
+        invoiceNumber: 'YPOS-001',
+        cashierName: 'kasir2',
+        items: const [],
+        subtotal: 0,
+        discount: 0,
+        total: 0,
+        paidAmount: 0,
+        changeAmount: 0,
+        paymentMethod: 'CASH',
+        createdAt: '',
+      ),
+      PaperSize.mm58,
+    );
+    final contents = lines.map((l) => l.content ?? '').join('\n');
+    expect(contents, contains('Kedai Kopi Tetangga'));
+    expect(contents, contains('Jl. Melati No. 12'));
+    expect(contents, contains('0812-0000-1111'));
+    expect(contents, contains('TERIMA KASIH ~ SAMPAI JUMPA'));
   });
 
   test('printerConfig menyesuaikan lebar kertas', () {

@@ -62,20 +62,33 @@ Status fase mengikuti roadmap master (urut, tidak melompat; tiap fase selesai = 
 - Backend: endpoint agregasi baru `dashboard.py` (summary, sales, best-sellers) RBAC OWNER — test **49 passed** (dashboard 8 test).
 - Verifikasi live: lint sukses, `npm run build` sukses, end-to-end lewat proxy Vite (login → transaksi → summary update → kasir 403) OK.
 
-## PHASE 7 — Integrasi & Offline Mobile (Flutter) [IN PROGRESS / berikutnya]
+## PHASE 7 — Integrasi & Offline Mobile (Flutter) [DONE]
 
-- Cart + checkout lengkap di app kasir (bayar CASH/QRIS/TRANSFER, validasi kembalian) — layar POS Flutter saat ini masih placeholder.
-- Alur Bayar → Payment Success → Cetak Struk (printer); printer gagal tidak menghapus transaksi (sudah aman di backend).
-- Koneksi ke API produktif/bersih (base URL configurable via `--dart-define`).
-- Sinkronisasi SQLite offline → RS: bisa antri transaksi saat offline dan sinkron saat online.
+(Core selesai & teruji. Push notifikasi terdaftar sebagai opsi "jika disepakati" — belum diajukan/disepakati.)
+
+- Cart + checkout lengkap di app kasir: ketuk produk → keranjang (qty +/-/hapus/badge), layar `CheckoutScreen` (diskon, metode CASH/QRIS/TRANSFER, uang dibayar, validasi kembalian), simpan via `POST /transactions` (harga & snapshot dari backend). [DONE]
+- Alur Bayar → **Payment Success** → **Cetak Struk / Cetak Ulang** via printer Bluetooth; printer gagal tidak menghapus transaksi (sudah aman di backend). [DONE]
+- Live verifikasi: `flutter analyze` clean, `flutter test` **10 passed** (cart + model/struk), `flutter build apk --debug` sukses, API live menerima payload app → `POS-20260923-0002` (CASH 2 item, diskon 5.000, kembalian 55.000) status PAID. [DONE]
+- Koneksi ke API produktif/bersih: `--dart-define=API_BASE_URL=...` (default `http://10.0.2.2:8000` emulator). [DONE]
+  - `ApiClient` normalisasi trailing `/` + **timeout 20 detik**; builtin verifikasi `dart run tool/check_api.dart` memakai `API_BASE_URL` default `http://127.0.0.1:8000`. Bukti: `flutter build apk --debug --dart-define=API_BASE_URL=http://192.168.1.50:8000` sukses; `check_api.dart` → health/login/products 200.
+- Sinkronisasi SQLite offline → RS: bayar saat offline masuk antrian `pending_transactions` (snapshot nama+harga lokal), `PaymentSuccess` offline, **auto-sync & tombol sync** saat online (status PENDING/SYNCED/FAILED, ulang/hapus item gagal). [DONE]
+  - Deps: `sqflite` + `path` (runtime), `sqflite_common_ffi` (test). File: `services/offline_transaction_store.dart`, `services/transaction_sync_service.dart`, `models/pending_transaction.dart`, `screens/pending_transactions_screen.dart`, `SyncNotifier` di `providers.dart`; checklist badge di POS.
+  - Verifikasi: `flutter analyze` clean, `flutter test` **19 passed** (7 sync/offline + 2 ApiClient), `flutter build apk --debug` (3x, termasuk --dart-define) sukses.
+  - Catatan jujur: fallback offline diuji via unit test dengan `SocketException` (sitah gagal koneksi) + `POST /transactions` live ke backend (POS-20260923-0002) karena alur offline replays body yang sama; belum diuji di perangkat Android offline nyata.
 - Push notifikasi / pending order (jika disepakati).
 
-## PHASE 8 — Fitur Lanjutan [TODO]
+## PHASE 8 — Fitur Lanjutan [IN PROGRESS]
 
-- SQLite sebagai cadangan & sinkronisasi.
+- Profil toko (nama & alamat di struk dikonfigurasi dari dashboard) **DONE**:
+  - Backend: model `store_profile` singleton id=1, `GET` (auth) / `PUT` (OWNER) `/api/v1/store-profile`; migrasi alembic `a1b2c3d4e5f6`; test **56 passed** (7 store profile).
+  - Web: `StoreProfilePage.tsx` + zustand store; struk POS dinamis; `npm run lint`/`build` sukses.
+  - Mobile: model + repo + cache `SessionStore` + `StoreProfileNotifier` (load saat login) → `ReceiptService` dinamis; `flutter analyze` clean, `flutter test` **24 passed** (4 store profile), `flutter build apk --debug` sukses.
+  - Live E2E web: GET → PUT ("Aroma Kopi Nusantara") → GET ulang persist. Cetak fisik tetap perlu verifikasi manual.
 - Skenario printer: Wi-Fi/network, logo, QR/barcode di struk.
-- Multi-tenant / profil toko (nama & alamat di struk dikonfigurasi dari dashboard).
-- Audit trail lengkap + export laporan (CSV/PDF).
+- Audit trail lengkap + export laporan (CSV/PDF) **DONE**:
+  - Backend: `AuditLog` (tabel sudah ada sejak migrasi `3ed605c47695`) kini diinstrumentasi — `auth.login`, `transaction.create/cancel` (sudah), `product.create/update/delete`, `category.create/update/delete`, `store_profile.update`, `report.csv/pdf`. `AuditService` (filter action/entity/user/tanggal/q + pagination), `GET /audit-logs` OWNER-only.
+  - Backend: `ReportService` + `GET /reports/transactions.csv` & `transactions.pdf` (filter tanggal/metode/status, OWNER-only) memakai reportlab 5.0.1 (ditambah ke requirements).
+  - Test: pytest **66 passed** (+4 audit, +6 reports). Web: halaman Audit Trail `/audit` (filter aksi/entitas/tanggal) + tombol Export CSV/PDF di Transaksi (hanya OWNER); lint & build sukses. Live E2E via proxy web: audit total=12 (login ter-klaim), CSV 200, PDF 200.
 - Deploy backend (gunicorn/uvicorn + nginx) & build produksi Web APK.
 
 ## Catatan Roadmap

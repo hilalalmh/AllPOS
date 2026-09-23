@@ -14,12 +14,14 @@ class ApiException implements Exception {
 
 class ApiClient {
   ApiClient({
-    required this.baseUrl,
+    required String baseUrl,
     this.tokenProvider,
-  });
+    this.timeout = const Duration(seconds: 20),
+  }) : baseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), '');
 
   final String baseUrl;
   final String? Function()? tokenProvider;
+  final Duration timeout;
 
   Future<dynamic> get(String path) => _send('GET', path);
 
@@ -43,28 +45,33 @@ class ApiClient {
 
     late http.Response response;
     final encoded = body == null ? null : jsonEncode(body);
-    switch (method) {
-      case 'GET':
-        response = await http.get(uri, headers: headers);
-        break;
-      case 'POST':
-        response = await http.post(uri, headers: headers, body: encoded);
-        break;
-      case 'PUT':
-        response = await http.put(uri, headers: headers, body: encoded);
-        break;
-      case 'DELETE':
-        response = await http.delete(uri, headers: headers, body: encoded);
-        break;
-      default:
-        throw ApiException(0, 'Metode HTTP tidak dikenal: $method');
-    }
-
+    final request = _perform(method, uri, headers, encoded);
+    response = await request.timeout(timeout);
     final data = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(response.statusCode, _errorMessage(data, response.statusCode));
     }
     return data;
+  }
+
+  Future<http.Response> _perform(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    String? encoded,
+  ) {
+    switch (method) {
+      case 'GET':
+        return http.get(uri, headers: headers);
+      case 'POST':
+        return http.post(uri, headers: headers, body: encoded);
+      case 'PUT':
+        return http.put(uri, headers: headers, body: encoded);
+      case 'DELETE':
+        return http.delete(uri, headers: headers, body: encoded);
+      default:
+        throw ApiException(0, 'Metode HTTP tidak dikenal: $method');
+    }
   }
 
   dynamic _decode(http.Response response) {

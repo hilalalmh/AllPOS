@@ -2,15 +2,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/app_config.dart';
+import '../models/pending_transaction.dart';
 import '../models/product.dart';
 import '../models/receipt.dart';
+import '../models/store_profile.dart';
 import '../models/user.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/session_store.dart';
+import '../repositories/store_profile_repository.dart';
+import '../repositories/transaction_repository.dart';
 import '../services/api_client.dart';
+import '../services/offline_transaction_store.dart';
 import '../services/printer_service.dart';
 import '../services/receipt_service.dart';
+import '../services/transaction_sync_service.dart';
 
 final sharedPrefsProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('Override sharedPrefsProvider di main()'),
@@ -85,12 +91,176 @@ final productRepositoryProvider = Provider<ProductRepository>(
   (ref) => ProductRepository(ref.watch(apiClientProvider)),
 );
 
+final transactionRepositoryProvider = Provider<TransactionRepository>(
+  (ref) => TransactionRepository(ref.watch(apiClientProvider)),
+);
+
+final offlineTransactionStoreProvider = Provider<OfflineTransactionStore>(
+  (ref) => OfflineTransactionStore(),
+);
+
+final transactionSyncServiceProvider = Provider<TransactionSyncService>(
+  (ref) => TransactionSyncService(
+    api: ref.watch(apiClientProvider),
+    store: ref.watch(offlineTransactionStoreProvider),
+  ),
+);
+
+class SyncState {
+  const SyncState({
+    this.pending = const [],
+    this.syncing = false,
+    this.lastSynced = 0,
+    this.lastFailed = 0,
+    this.error,
+  });
+
+  final List<PendingTransaction> pending;
+  final bool syncing;
+  final int lastSynced;
+  final int lastFailed;
+  final String? error;
+
+  int get queuedCount => pending.where((t) => t.isPending).length;
+  int get failedCount => pending.where((t) => t.isFailed).length;
+  int get syncedCount => pending.where((t) => t.isSynced).length;
+
+  SyncState copyWith({
+    List<PendingTransaction>? pending,
+    bool? syncing,
+    int? lastSynced,
+    int? lastFailed,
+    String? error,
+  }) =>
+      SyncState(
+        pending: pending ?? this.pending,
+        syncing: syncing ?? this.syncing,
+        lastSynced: lastSynced ?? this.lastSynced,
+        lastFailed: lastFailed ?? this.lastFailed,
+        error: error ?? this.error,
+      );
+}
+
+class SyncNotifier extends StateNotifier<SyncState> {
+  SyncNotifier({
+    required this.transactionSyncService,
+  }) : super(const SyncState());
+
+  final TransactionSyncService transactionSyncService;
+
+  Future<void> load() async {
+    final pending =
+        await transactionSyncService.store.all();
+    state = state.copyWith(pending: pending, error: null);
+  }
+
+  Future<void> syncNow() async {
+    state = state.copyWith(syncing: true, error: null);
+    final outcome = await transactionSyncService.syncAll();
+    final pending = await transactionSyncService.store.all();
+    state = state.copyWith(
+      pending: pending,
+      syncing: false,
+      lastSynced: outcome.synced,
+      lastFailed: outcome.failed,
+      error: outcome.error,
+    );
+  }
+
+  Future<void> retry(int id) async {
+    await transactionSyncService.store.resetToPending(id);
+    await load();
+  }
+
+  Future<void> remove(int id) async {
+    await transactionSyncService.store.remove(id);
+    await load();
+  }
+}
+
+final syncNotifierProvider =
+    StateNotifierProvider<SyncNotifier, SyncState>((ref) {
+  return SyncNotifier(transactionSyncService: ref.watch(transactionSyncServiceProvider));
+});
+
 final productsProvider = FutureProvider<List<Product>>(
   (ref) => ref.watch(productRepositoryProvider).fetchProducts(),
 );
 
+final storeProfileRepositoryProvider = Provider<StoreProfileRepository>(
+  (ref) => StoreProfileRepository(api: ref.watch(apiClientProvider)),
+);
+
+class StoreProfileState {
+  const StoreProfileState({
+    this.profile = StoreProfile.defaultProfile,
+    this.loading = false,
+    this.error,
+  });
+
+  final StoreProfile profile;
+  final bool loading;
+  final String? error;
+
+  StoreProfileState copyWith({
+    StoreProfile? profile,
+    bool? loading,
+    String? error,
+  }) =>
+      StoreProfileState(
+        profile: profile ?? this.profile,
+        loading: loading ?? this.loading,
+        error: error ?? this.error,
+      );
+}
+
+class StoreProfileNotifier extends StateNotifier<StoreProfileState> {
+  StoreProfileNotifier({
+    required this.repository,
+    required this.sessionStore,
+  }) : super(StoreProfileState(profile: sessionStore.storeProfile)) {
+    load();
+  }
+
+  final StoreProfileRepository repository;
+  final SessionStore sessionStore;
+
+  Future<void> load() async {
+    if (state.loading) return;
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final profile = await repository.fetch();
+      await sessionStore.saveStoreProfile(profile);
+      state = state.copyWith(profile: profile, loading: false);
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: e is ApiException ? e.message : e.toString(),
+      );
+    }
+  }
+}
+
+final storeProfileNotifierProvider =
+    StateNotifierProvider<StoreProfileNotifier, StoreProfileState>((ref) {
+  return StoreProfileNotifier(
+    repository: ref.watch(storeProfileRepositoryProvider),
+    sessionStore: ref.watch(sessionStoreProvider),
+  );
+});
+
 final receiptServiceProvider = Provider<ReceiptService>(
-  (ref) => ReceiptService(),
+  (ref) {
+    final profile = ref.watch(storeProfileNotifierProvider).profile;
+    return ReceiptService(
+      store: StoreInfo(
+        name: profile.storeName,
+        address: profile.address,
+        phone: profile.phone,
+        footer: profile.footer,
+      ),
+    );
+  },
 );
 
 final printerServiceProvider = Provider<PrinterService>(

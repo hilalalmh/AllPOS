@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/receipt.dart';
+import '../models/store_profile.dart';
 import '../models/user.dart';
 import '../services/printer_service.dart';
 
@@ -17,6 +18,7 @@ class SessionStore {
   static const _printerTypeKey = 'printer.type';
   static const _paperSizeKey = 'printer.paper_size';
   static const _lastReceiptKey = 'printer.last_receipt';
+  static const _storeProfileKey = 'store.profile';
 
   final SharedPreferences _prefs;
 
@@ -85,5 +87,19 @@ class SessionStore {
 
   Future<void> saveLastReceipt(ReceiptData receipt) async {
     await _prefs.setString(_lastReceiptKey, jsonEncode(receipt.toJson()));
+  }
+
+  StoreProfile get storeProfile {
+    final raw = _prefs.getString(_storeProfileKey);
+    if (raw == null) return StoreProfile.defaultProfile;
+    try {
+      return StoreProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return StoreProfile.defaultProfile;
+    }
+  }
+
+  Future<void> saveStoreProfile(StoreProfile profile) async {
+    await _prefs.setString(_storeProfileKey, jsonEncode(profile.toJson()));
   }
 }

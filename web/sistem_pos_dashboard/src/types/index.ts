@@ -124,3 +124,30 @@ export interface DashboardSummary {
   active_products: number;
   best_seller: BestSellerItem | null;
 }
+export interface StoreProfile {
+  id: number;
+  store_name: string;
+  address: string | null;
+  phone: string | null;
+  footer: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLog {
+  id: number;
+  user_id: number | null;
+  username: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: number | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AuditLogList {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+}

@@ -2,36 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/product.dart';
+import '../providers/cart_provider.dart';
 import '../providers/providers.dart';
+import '../utils/money.dart';
+import 'checkout_screen.dart';
+import 'pending_transactions_screen.dart';
 import 'printer_settings_screen.dart';
 
-class PosScreen extends ConsumerWidget {
+class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
-  String _formatPrice(num value) {
-    final whole = value.floor();
-    final digits = whole.toString();
-    final buffer = StringBuffer();
-    final reversed = digits.split('').reversed.toList();
-    for (var i = 0; i < reversed.length; i++) {
-      buffer.write(reversed[i]);
-      if ((i + 1) % 3 == 0 && i != reversed.length - 1) {
-        buffer.write('.');
+  @override
+  ConsumerState<PosScreen> createState() => _PosScreenState();
+}
+
+class _PosScreenState extends ConsumerState<PosScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(syncNotifierProvider.notifier).load();
       }
-    }
-    return buffer.toString().split('').reversed.join();
+    });
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionStoreProvider);
     final user = session.user;
     final productsAsync = ref.watch(productsProvider);
+    final cart = ref.watch(cartProvider);
+    final sync = ref.watch(syncNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kasir'),
         actions: [
+          IconButton(
+            tooltip: 'Transaksi Tertunda',
+            icon: Badge(
+              label: Text('${sync.queuedCount + sync.failedCount}'),
+              isLabelVisible: sync.queuedCount + sync.failedCount > 0,
+              child: const Icon(Icons.cloud_upload_outlined),
+            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PendingTransactionsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Pengaturan Printer',
             icon: const Icon(Icons.print_outlined),
@@ -102,32 +124,49 @@ class PosScreen extends ConsumerWidget {
               ),
               data: (products) => _ProductGrid(
                 products: products,
-                formatPrice: _formatPrice,
+                onTap: (product) {
+                  ref.read(cartProvider.notifier).add(product);
+                  final line = ref.read(cartProvider).lineFor(product.id);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      duration: const Duration(milliseconds: 900),
+                      content: Text(
+                        '${product.name} · ${line?.quantity ?? 1}x · '
+                        '${formatRupiah(product.price * (line?.quantity ?? 1))}',
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Keranjang & pembayaran sedang dibangun.'),
+      floatingActionButton: cart.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CheckoutScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.shopping_cart_outlined),
+              label: Text(
+                'Keranjang · ${cart.totalQuantity}x · '
+                '${formatRupiah(cart.subtotal)}',
+              ),
             ),
-          );
-        },
-        icon: const Icon(Icons.shopping_cart_outlined),
-        label: const Text('Kosong'),
-      ),
     );
   }
 }
 
 class _ProductGrid extends StatelessWidget {
-  const _ProductGrid({required this.products, required this.formatPrice});
+  const _ProductGrid({required this.products, required this.onTap});
 
   final List<Product> products;
-  final String Function(num) formatPrice;
+  final void Function(Product product) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -149,13 +188,7 @@ class _ProductGrid extends StatelessWidget {
           margin: EdgeInsets.zero,
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${product.name}: ${formatPrice(product.price)}'),
-                ),
-              );
-            },
+            onTap: () => onTap(product),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -194,7 +227,7 @@ class _ProductGrid extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Rp ${formatPrice(product.price)}',
+                    formatRupiah(product.price),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,

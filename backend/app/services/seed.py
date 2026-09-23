@@ -2,11 +2,19 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.models import Category, Product, Role, RoleEnum, User
+from app.models import (
+    Category,
+    Product,
+    Role,
+    RoleEnum,
+    StoreProfile,
+    User,
+)
 from app.repositories.role_repository import RoleRepository
 from app.services.auth_service import create_user
 
 DEFAULT_OWNER_USERNAME = "owner"
+SEED_ADMIN_PASSWORD = settings.SEED_ADMIN_PASSWORD
 
 
 def seed_roles(db: Session) -> dict[str, Role]:
@@ -21,11 +29,27 @@ def seed_roles(db: Session) -> dict[str, Role]:
     return roles_by_name
 
 
+def seed_store_profile(db: Session) -> None:
+    """Pastikan singleton profil toko (id=1) ada dengan default."""
+    profile = db.get(StoreProfile, 1)
+    if profile is None:
+        db.add(
+            StoreProfile(
+                id=1,
+                store_name="SISTEM POS",
+                address=None,
+                phone=None,
+                footer="TERIMA KASIH ~ SILAHKAN DATANG KEMBALI",
+            )
+        )
+        db.flush()
+
+
 def seed_admin_user(db: Session) -> None:
     repo = RoleRepository(db)
     owner_role = repo.get_by(name=RoleEnum.OWNER.value)
     if owner_role is None:
-        raise RuntimeError("Role OWNER belum ada. Jalankan seed roles terlebih dahulu.")
+        raise RuntimeError("Role OWNER belum ada. Seed roles terlebih dahulu.")
 
     existing = db.query(User).filter_by(username=DEFAULT_OWNER_USERNAME).first()
     if existing is not None:
@@ -35,21 +59,9 @@ def seed_admin_user(db: Session) -> None:
         db,
         role_id=owner_role.id,
         username=DEFAULT_OWNER_USERNAME,
-        password=settings.SEED_ADMIN_PASSWORD,
+        password=SEED_ADMIN_PASSWORD,
         full_name="Owner",
     )
-
-
-def run_seed() -> None:
-    with SessionLocal() as db:
-        try:
-            seed_roles(db)
-            seed_admin_user(db)
-            seed_demo_products(db)
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
 
 
 DEMO_CATEGORIES = {
@@ -88,6 +100,19 @@ def seed_demo_products(db: Session) -> None:
     db.flush()
 
 
+def run_seed() -> None:
+    with SessionLocal() as db:
+        try:
+            seed_roles(db)
+            seed_admin_user(db)
+            seed_store_profile(db)
+            seed_demo_products(db)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+
 if __name__ == "__main__":
     run_seed()
-    print("Seed berhasil: roles OWNER/KASIR + user admin 'owner' + contoh produk.")
+    print("Seed berhasil: roles OWNER/KASIR + admin 'owner' + profil toko + contoh produk.")

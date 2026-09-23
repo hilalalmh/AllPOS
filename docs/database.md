@@ -14,6 +14,7 @@ roles 1───* users 1───* transactions 1───* transaction_items
                               └──1 payments
 users 1───* audit_logs
 categories 1───* products 1───* transaction_items (RESTRICT)
+store_profiles        (singleton id=1, mandiri)
 ```
 
 - Transaksi di-**cancel**, tidak dihapus fisik.
@@ -119,11 +120,25 @@ Snapshot `product_name` + `price` membuat riwayat transaksi tidak berubah walau 
 |-------|------|-----------|
 | id | serial PK | |
 | user_id | int FK → users.id | SET NULL, nullable, INDEX |
-| action | varchar(50) | INDEX, contoh `transaction.create`, `transaction.cancel` |
-| entity_type | varchar(50) | INDEX |
+| action | varchar(50) | INDEX, contoh `auth.login`, `transaction.create`, `transaction.cancel`, `product.create`, `category.update`, `store_profile.update`, `report.csv` |
+| entity_type | varchar(50) | INDEX; contoh `user`, `transaction`, `product`, `category`, `store_profile`, `report` |
 | entity_id | int | nullable |
 | details | jsonb | nullable (detail bebas) |
 | created_at | timestamptz | |
+
+## Tabel `store_profiles`
+
+| Kolom | Tipe | Keterangan |
+|-------|------|-----------|
+| id | int PK (singleton) | selalu `1` |
+| store_name | varchar(100) | default `SISTEM POS` |
+| address | varchar(255) | nullable |
+| phone | varchar(30) | nullable |
+| footer | varchar(255) | default `TERIMA KASIH ~ SILAHKAN DATANG KEMBALI`, dipakai di footer struk |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+Satu baris (id=1) di-seed; dipakai web & mobile sebagai header/footer struk.
 
 ## Migrasi (Alembic)
 
@@ -133,6 +148,7 @@ Snapshot `product_name` + `price` membuat riwayat transaksi tidak berubah walau 
 | `8e22230fef65` | add roles & users |
 | `c201f1d8a910` | add categories & products |
 | `3ed605c47695` | add transactions, payments, audit_logs |
+| `a1b2c3d4e5f6` | add store_profiles |
 
 Perintah:
 
@@ -153,3 +169,6 @@ python -m alembic revision --autogenerate -m "deskripsi"
 - Role `OWNER`, `KASIR`.
 - User `owner` (password dari `SEED_ADMIN_PASSWORD`, default dev `admin123`).
 - Kategori `Coffee`, `Non Coffee` + produk demo (Es Kopi, Americano, Latte, Matcha, Chocolate, Tea).
+- Profil toko `id=1` (SISTEM POS) — idempotent, tidak menimpa nilai yang sudah diubah.
+
+Jika tabel `store_profiles` belum ada di DB, jalankan `python -m alembic upgrade head` (revisi `a1b2c3d4e5f6`).

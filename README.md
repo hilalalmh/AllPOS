@@ -187,7 +187,6 @@ python -m pytest tests -v   # 9 passed (login, token, me, refresh, invalid cases
 
 ## Catatan
 
-- `Payment`, `Transaction`, dsb. belum diimplementasikan — mengikuti roadmap MVP.
 - Jangan commit secret. Semua kredensial lewat `.env`.
 - Ganti `JWT_SECRET` di `.env` sebelum production.
 
@@ -246,3 +245,46 @@ Salinan plugin dikunci di `mobile/sistem_pos/third_party/bluetooth_print` via `d
 - **Dashboard** (`/`): kartu ringkasan + grafik penjualan (AreaChart) + menu terlaris (BarChart), filter Hari Ini/7 Hari/30 Hari.
 
 Verifikasi: `npm run lint` OK, `npm run build` OK, end-to-end live lewat proxy Vite (login → transaksi `POS-20260923-0001` → summary ikut update → kasir 403) sukses.
+
+## PHASE 7 — POS MOBILE & OFFLINE (DONE)
+
+### Transaksi kasir mobile (Flutter)
+- Keranjang: tambah produk (cari sederhana), ubah qty, diskon global, metode `CASH/QRIS/TRANSFER`, uang dibayar & kembalian, ringkasan.
+- Checkout → `POST /api/v1/transactions` (harga tetap dari backend) → halaman sukses menampilkan struk → **cetak struk / cetak ulang** via bluetooth_print.
+- Kartu ulang transaksi tadi dipersist (`printer.last_receipt`).
+
+### Offline SQLite (queue + sync)
+- Saat jaringan bermasalah (timeout/`SocketException`), transaksi **tidak gagal** — masuk antrian `pending_transactions` (SQLite, snapshot nama+harga lokal) dan disinkronkan otomatis saat online; ada tombol sinkron manual + halaman daftar status `PENDING/SYNCED/FAILED` (retry / hapus).
+- Error 4xx (validasi/RBAC) **tidak** jatuh offline — tetap tampil error.
+- Deps: `sqflite` + `path` (runtime), `sqflite_common_ffi` (test).
+
+### Base URL fleksibel
+- `--dart-define=API_BASE_URL=...`; default `http://10.0.2.2:8000` (emulator). `ApiClient` memangkas trailing `/` + timeout 20 detik.
+
+Verifikasi: `flutter analyze` clean, `flutter test` (offline sync + ApiClient + cart), `flutter build apk --debug` sukses, `POST /transactions` live → `POS-20260923-0002`. **Belum** diuji di perangkat offline nyata (fallback diuji via unit test `SocketException`).
+
+## PHASE 8 — FITUR LANJUTAN (SEBAGIAN DONE)
+
+### Profil Toko (DONE)
+- Backend: tabel `store_profiles` (singleton id=1), `GET /api/v1/store-profile` (semua auth) & `PUT` (OWNER); migrasi `a1b2c3d4e5f6`; seed idempotent.
+- Web: halaman **Profil Toko** (`/store-profile`, OWNER) — nama toko, alamat, telepon, footer struk; tersimpan via zustand store; struk POS (`/pos`) header/footer dinamis.
+- Mobile: model + repository + cache `SessionStore` + `StoreProfileNotifier` (ambil saat login) → struk `ReceiptService` dinamis (fallback `SISTEM POS`).
+- Live E2E: GET → PUT ("Aroma Kopi Nusantara") → GET ulang persist. Cetak fisik tetap perlu verifikasi manual.
+
+### Audit Trail + Export Laporan (DONE)
+- Backend: `AuditLog` diinstrumentasi penuh — `auth.login`, `transaction.create/cancel`, `product/category.create/update/delete`, `store_profile.update`, `report.csv/pdf`. `GET /api/v1/audit-logs` (OWNER), filter action/entitas/user/tanggal/q + pagination.
+- Export: `GET /api/v1/reports/transactions.csv` & `transactions.pdf` (reportlab), filter tanggal/metode/status, OWNER-only.
+- Web: halaman **Audit Trail** (`/audit`, OWNER) + tombol **Export CSV / Export PDF** di Transaksi (hanya tampil untuk OWNER).
+
+### Sisa (belum dikerjakan)
+- Printer Wi-Fi/network, logo, QR/barcode di struk.
+- Deploy backend (gunicorn/uvicorn + nginx) & build produksi Web/APK.
+
+## Status Test
+
+| Komponen | Perintah | Hasil |
+|----------|----------|-------|
+| Backend | `python -m pytest` (dari `backend/`) | **66 passed** |
+| Web | `npm run lint` + `npm run build` | bersih & sukses |
+| Mobile | `flutter analyze` + `flutter test` | clean & **24 passed** |
+| Mobile | `flutter build apk --debug` | sukses |

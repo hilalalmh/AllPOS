@@ -6,6 +6,7 @@ from app.core.deps import get_current_user
 from app.models import User
 from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
 from app.schemas.user import UserMe
+from app.services.audit_service import record_audit
 from app.services.auth_service import (
     AuthService,
     InvalidCredentialsError,
@@ -21,7 +22,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     service = AuthService(db)
     try:
         user = service.authenticate(payload.username, payload.password)
-        return service.issue_tokens(user)
+        tokens = service.issue_tokens(user)
+        record_audit(
+            db,
+            user=user,
+            action="auth.login",
+            entity_type="user",
+            entity_id=user.id,
+            details={"username": user.username},
+        )
+        db.commit()
+        return tokens
     except InvalidCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

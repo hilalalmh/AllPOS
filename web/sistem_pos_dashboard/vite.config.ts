@@ -3,6 +3,18 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Pisahkan vendor besar (recharts + react) jadi chunk terpisah agar
+        // index.js tidak melampaui 500 kB. Behavior runtime tidak berubah.
+        manualChunks: {
+          "vendor-chart": ["recharts"],
+          "vendor-react": ["react", "react-dom", "react-router-dom", "zustand"],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

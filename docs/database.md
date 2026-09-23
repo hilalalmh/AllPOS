@@ -9,9 +9,10 @@ Uang disimpan sebagai `NUMERIC(12,2)`. Waktu memakai `timestamptz`. Migrasi dike
 
 ```
 roles 1───* users 1───* transactions 1───* transaction_items
-                              │                  │
-                              │                  └──* products (RESTRICT)
-                              └──1 payments
+                │            │                  │
+                │            │                  └──* products (RESTRICT)
+                │            └──1 payments
+                └──* refresh_tokens   (jti UNIQUE, revoked)
 users 1───* audit_logs
 categories 1───* products 1───* transaction_items (RESTRICT)
 store_profiles        (singleton id=1, mandiri)
@@ -20,6 +21,8 @@ store_profiles        (singleton id=1, mandiri)
 - Transaksi di-**cancel**, tidak dihapus fisik.
 - Item & payment ikut terhapus (CASCADE) jika transaksi dihapus (hanya satuan dev).
 - Produk/kategori yang sudah dipakai transaksi tidak bisa dihapus (RESTRICT).
+- `transactions.local_ref` UNIQUE **global** — kunci idempotensi sinkronisasi offline.
+- `refresh_tokens.user_id` CASCADE (hapus user → refresh token ikut terhapus).
 
 ## Tabel `roles`
 
@@ -43,6 +46,19 @@ Role seed: `OWNER`, `KASIR`. Referensi aplikasi: enum `RoleEnum` (`backend/app/m
 | is_active | bool | default true |
 | created_at | timestamptz | server_default now() |
 | updated_at | timestamptz | onupdate now() |
+
+## Tabel `refresh_tokens`
+
+| Kolom | Tipe | Keterangan |
+|-------|------|-----------|
+| id | serial PK | |
+| jti | varchar(64) | UNIQUE + INDEX (identifier token, acak) |
+| user_id | int FK → users.id | CASCADE, INDEX |
+| expires_at | timestamptz | |
+| revoked | bool | default false |
+| created_at | timestamptz | server_default now() |
+
+Refresh token **diputar (rotasi atomik)** di setiap `POST /auth/refresh` (token yang sama dicabut). Seluruh baris user di-set `revoked` saat ganti password. Baris kedaluwarsa dibersihkan saat issue token baru.
 
 ## Tabel `categories`
 
@@ -75,6 +91,7 @@ Role seed: `OWNER`, `KASIR`. Referensi aplikasi: enum `RoleEnum` (`backend/app/m
 |-------|------|-----------|
 | id | serial PK | |
 | invoice_number | varchar(30) | UNIQUE + INDEX, `POS-YYYYMMDD-XXXX` |
+| local_ref | varchar(64) | UNIQUE + INDEX, nullable — kunci idempoten universal (replay offline) |
 | cashier_id | int FK → users.id | RESTRICT, INDEX |
 | subtotal | numeric(12,2) | |
 | discount | numeric(12,2) | default 0 |
@@ -149,6 +166,8 @@ Satu baris (id=1) di-seed; dipakai web & mobile sebagai header/footer struk.
 | `c201f1d8a910` | add categories & products |
 | `3ed605c47695` | add transactions, payments, audit_logs |
 | `a1b2c3d4e5f6` | add store_profiles |
+| `b7c8d9e0a1b2` | add transactions.local_ref (UNIQUE global, idempotensi offline) |
+| `d4f5c6b7e809` | add refresh_tokens (jti UNIQUE) |
 
 Perintah:
 

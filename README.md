@@ -32,9 +32,9 @@ SISTEM-POS/
 ## Stack
 
 - Backend: Python 3.14, FastAPI, SQLAlchemy 2.x, Alembic, Pydantic v2, psycopg 3
-- Mobile: Flutter 3.47 (Dart 3.13), Riverpod 2, `bluetooth_print` (ESC/POS via Bluetooth), `shared_preferences`
+- Mobile: Flutter 3.47 (Dart 3.13), Riverpod 2, `bluetooth_print` (ESC/POS via Bluetooth), `shared_preferences`, `sqflite` (offline queue)
 - Web: React 18, Vite 6, TypeScript 5.6, Tailwind 3, Axios, React Router, Zustand, Recharts
-- Database: PostgreSQL 17 (default user `pos_user` / DB `sistem_pos`)
+- Database: PostgreSQL 17 (default user `pos_user` / DB `sistem_pos`); SQLite lokal di Flutter untuk antrian offline
 
 ## Requirement Environment
 
@@ -255,7 +255,8 @@ Verifikasi: `npm run lint` OK, `npm run build` OK, end-to-end live lewat proxy V
 
 ### Offline SQLite (queue + sync)
 - Saat jaringan bermasalah (timeout/`SocketException`), transaksi **tidak gagal** — masuk antrian `pending_transactions` (SQLite, snapshot nama+harga lokal) dan disinkronkan otomatis saat online; ada tombol sinkron manual + halaman daftar status `PENDING/SYNCED/FAILED` (retry / hapus).
-- Error 4xx (validasi/RBAC) **tidak** jatuh offline — tetap tampil error.
+- **Idempoten**: setiap checkout mengirim `local_ref` unik (dibuat per transaksi offline); backend menjadikannya **UNIQUE global** sehingga transaksi yang tersinkron ulang tidak menimbulkan penjualan ganda.
+- Error 4xx (validasi/RBAC) **tidak** jatuh offline — tetap tampil error; error jaringan/5xx tidak dihitung sebagai kegagalan (tetap `PENDING`).
 - Deps: `sqflite` + `path` (runtime), `sqflite_common_ffi` (test).
 
 ### Base URL fleksibel
@@ -280,11 +281,24 @@ Verifikasi: `flutter analyze` clean, `flutter test` (offline sync + ApiClient + 
 - Printer Wi-Fi/network, logo, QR/barcode di struk.
 - Deploy backend (gunicorn/uvicorn + nginx) & build produksi Web/APK.
 
+## Audit Keamanan (Ronde 1–3 — DONE)
+
+Pengerasan keamanan dilakukan bertahap dalam 3 ronde audit (semua teruji — lihat Status Test):
+
+- **Otentikasi**: password di-hash bcrypt; verifikasi waktu-sama + *dummy bcrypt* saat username tak ditemukan (anti username-enumeration); JWT access (60 mnt) + refresh (7 hari) tersimpan di DB (`refresh_tokens`, jti unik) dengan **rotasi atomik** (dipakai sekali; ulang pakai ditolak).
+- **Throttle login**: gagal login ≥ `LOGIN_MAX_FAILURES` dalam jendela `LOGIN_LOCKOUT_MINUTES` → `429` + `Retry-After`. Hanya percobaan gagal yang dihitung (bot tidak bisa mengunci akun orang lain via login sukses).
+- **Sesi dicabut**: ganti password (oleh diri sendiri maupun admin) **mencabut semua refresh token** user.
+- **Backend = otoritas harga**: harga dari database, bukan client. Replay offline aman: `local_ref` unik **global** → kirim ulang isi sama = transaksi yang sama; isi berlainan → `409`.
+- **Upload aman**: validasi tipe via **magic bytes** (bukan sekadar ekstensi), ukuran ≤ 2 MB, nama UUID; penghapusan file dengan guard traversal (`..`, `/`, `\`).
+- **Fail-closed**: `ENVIRONMENT=production` menolak start bila `JWT_SECRET` lemah/<32 karakter atau seed `admin123`.
+- **Mobile**: endpoint `/api/v1/auth/*` tak memicu logout saat token habis; transaksi offline (jaringan/5xx) tidak dianggap gagal; session init gagal → bersihkan & balik ke login; logout revolasi async (UI tidak terblokir).
+- **Web**: auto-refresh **single-flight** + penjaga generasi token; logout paksa hanya saat refresh benar-benar `401`; retry idempoten (GET/HEAD/PUT/PATCH/DELETE); pesan error login spesifik (429/403/network).
+
 ## Status Test
 
 | Komponen | Perintah | Hasil |
 |----------|----------|-------|
-| Backend | `python -m pytest` (dari `backend/`) | **66 passed** |
+| Backend | `.\\.venv\\Scripts\\python.exe -m pytest -q` (dari `backend/`) | **96 passed** |
 | Web | `npm run lint` + `npm run build` | bersih & sukses |
 | Mobile | `flutter analyze` + `flutter test` | clean & **24 passed** |
 | Mobile | `flutter build apk --debug` | sukses |

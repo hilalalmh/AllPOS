@@ -70,6 +70,9 @@ File: `backend/.env` (jangan di-commit). Semua key opsional (punya default di `a
 | `UPLOAD_DIR` | `uploads` | Folder gambar produk |
 | `MAX_UPLOAD_SIZE` | `2097152` | Maks 2 MB |
 | `ALLOWED_IMAGE_TYPES` | jpeg/png/webp | Tipe gambar |
+| `ENVIRONMENT` | `production` | Mode lingkungan; **fail-closed** produksi (start ditolak bila `JWT_SECRET` lemah atau seed `admin123`). Dev/test wajib set `development`/`test` eksplisit. |
+| `LOGIN_MAX_FAILURES` | `5` | Ambang gagal login per (username, IP) sebelum `429` |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | Jendela waktu hitung gagal login |
 
 Test (pytest) memakai `sistem_pos_test` via `tests/conftest.py` (dependency override), **bukan** dari `.env`.
 
@@ -124,7 +127,7 @@ Praktik baik:
 | Cek | Perintah | Harapan |
 |-----|----------|---------|
 | Backend hidup | `Invoke-RestMethod http://localhost:8000/api/v1/health` | `status=ok`, `database=ok` |
-| Backend test | `cd backend && .\.venv\Scripts\python.exe -m pytest tests -q` | semua pass (saat ini 49) |
+| Backend test | `cd backend && .\.venv\Scripts\python.exe -m pytest tests -q` | semua pass (saat ini 96) |
 | Web build | `cd web/sistem_pos_dashboard && npm run lint && npm run build` | sukses |
 | Flutter analyze | `cd mobile/sistem_pos && flutter analyze` | No issues |
 | Flutter test | `flutter test` | pass |

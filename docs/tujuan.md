@@ -23,6 +23,8 @@ Aturan ini wajib selamanya dipatuhi:
 6. **Pagination wajib** untuk list (transaksi, produk). Parameter `page`/`page_size` konsisten.
 7. **Cukup bukti, bukan klaim.** Setiap fase Selesai = teruji (pytest backend, widget test / lint build web + Flutter, dan verifikasi live API), bukan sekadar "kodenya jadi".
 8. **Jangan commit secret.** Semua kredensial/token lewat `.env`, tidak pernah masuk git.
+9. **Idempoten transaksi offline.** Setiap pembayaran mengirim `local_ref` unik; backend menjadikannya UNIQUE global dan menolak replay dengan isi berbeda (`409`) — jaringan/sinkronisasi ganda tidak pernah menghasilkan penjualan ganda.
+10. **Keamanan diperketat bertahap.** Audit keamanan rutin (ronde 1–3 selesai) wajib: rotasi refresh token, throttle login, anti-enumeration, validasi upload berbasis magic bytes, fail-closed produksi.
 
 ## 3. Fase Roadmap (Urut, Jangan Dilompati)
 
@@ -34,8 +36,8 @@ Aturan ini wajib selamanya dipatuhi:
 | 4 | POS/Transaction: transaksi atomarik, invoice unik, payment, cancel, audit | DONE |
 | 5 | Mobile Flutter + Printer: login, sesi, printer BT, struk, APK | DONE |
 | 6 | Dashboard Web: login admin, bayar, transaksi, CRUD produk, statistik | DONE |
-| 7 | Integrasi & Offline Mobile: cart/checkout Flutter, sinkronisasi SQLite offline | BERIKUTNYA |
-| 8 | Fitur lanjut: profil toko, barcode/QR di struk, export laporan, deploy | TODO |
+| 7 | Integrasi & Offline Mobile: cart/checkout Flutter, sinkronisasi SQLite offline | DONE |
+| 8 | Fitur lanjut: profil toko, barcode/QR di struk, export laporan, deploy | IN PROGRESS |
 
 ## 4. Target & Kualitas
 

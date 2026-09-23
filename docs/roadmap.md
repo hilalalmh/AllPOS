@@ -91,7 +91,18 @@ Status fase mengikuti roadmap master (urut, tidak melompat; tiap fase selesai = 
   - Test: pytest **66 passed** (+4 audit, +6 reports). Web: halaman Audit Trail `/audit` (filter aksi/entitas/tanggal) + tombol Export CSV/PDF di Transaksi (hanya OWNER); lint & build sukses. Live E2E via proxy web: audit total=12 (login ter-klaim), CSV 200, PDF 200.
 - Deploy backend (gunicorn/uvicorn + nginx) & build produksi Web APK.
 
+## Audit Keamanan (Ronde 1–3) [DONE]
+
+Pengerasan keamanan di luar roadmap fitur, dikerjakan bertahap (semua teruji):
+
+- **Audit awal**: `efff7cb` / `62474ce` / `b2a7df9` — rate limit login, guard JWT produksi, clamp `created_at`, `local_ref` replay 409, export cap, header CSP, `allowBackup=false` Android, refresh *network-aware*, idempotensi web, user management (web+API), tagging kasir antrian offline.
+- **Ronde 2** (`b5451e0`): refresh path mobile, `local_ref` stabil pada reset line offline, `ENVIRONMENT` fail-closed, anti username-enumeration (dummy bcrypt), validasi upload **magic bytes**, web logout race & retry (single-flight refresh).
+- **Ronde 3** (`4ac4405`): perbaikan duplikasi checkout offline (notifier & `PopScope`), filter sinkronisasi per-kasir, endpoint `/api/v1/auth/*` bebas dari logout-401, throttle login adil (hanya kegagalan + eviction), **rotasi refresh atomik** + pencabutan semua saat ganti password, kunci baris owner sebelum mutasi role/is_active, `create_product` membersihkan file bila gagal, dedup `local_ref` global, guard path traversal hapus gambar, refresh web tanpa logout paksa + guard `/` per role + clamp diskon/uang dibayar + pesan error login spesifik.
+- Migrasi baru pada ronde audit: `b7c8d9e0a1b2` (transactions.local_ref), `d4f5c6b7e809` (refresh_tokens).
+- Test terkini: pytest **96 passed**; mobile `flutter test` **24 passed**; web lint + build sukses. Detail kontrol di `docs/arsitektur.md` → Keamanan.
+
 ## Catatan Roadmap
 
 - Setiap features wajib diuji (pytest backend, widget test Flutter, uji manual via live check) sebelum dinyatakan selesai.
 - Jangan meng-claim sukses tanpa verifikasi aktual.
+- Kondisi test **terkini** (pembaruan dari angka historis per fase): backend **96 passed** di `backend/` via `.\.venv\Scripts\python.exe -m pytest -q`, mobile **24 passed** via `flutter test`. Angka per-fase di atas adalah kondisi saat fase itu ditutup.

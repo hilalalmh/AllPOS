@@ -42,8 +42,9 @@ CORS origin dev: `http://localhost:5173` dan `http://127.0.0.1:5173`.
 - `401` — login gagal / token tidak valid / kedaluwarsa.
 - `403` — user nonaktif, atau role tidak diizinkan (RBAC).
 - `404` — resource tidak ditemukan.
-- `409` — duplikat (SKU, nama kategori bersifat unik).
+- `409` — duplikat (SKU, nama kategori bersifat unik; replay `local_ref` dengan isi berbeda; gagal membuat invoice unik).
 - `422` — validasi gagal (skema, atau aturan bisnis transaksi seperti pembayaran kurang / produk nonaktif).
+- `429` — terlalu banyak percobaan login dalam jendela `LOGIN_LOCKOUT_MINUTES` (throttle); sertakan header `Retry-After` (detik).
 
 ## Health Check
 
@@ -78,7 +79,7 @@ Response `200`:
 }
 ```
 
-Error: `401` kredensial salah; `403` user nonaktif.
+Error: `401` kredensial salah (pesan seragam, terlepas akun ada atau tidak — anti username-enumeration); `403` user nonaktif; `429` terlalu banyak percobaan gagal dari (username, IP) dalam jendela `LOGIN_LOCKOUT_MINUTES` — sertakan header `Retry-After`. Hanya kredensial salah yang menambah counter (login sukses tidak bisa dipakai bot untuk mengunci akun orang lain).
 
 ### POST `/api/v1/auth/refresh`
 
@@ -88,7 +89,7 @@ Body:
 { "refresh_token": "<jwt>" }
 ```
 
-Response `200` sama seperti login. Error `401` refresh token tidak valid.
+Response `200` sama seperti login. Refresh token **rotasi atomik**: disimpan di tabel `refresh_tokens` (jti unik, `revoked`), setiap refresh memakai token yang sama sekaligus mencabut yang lama (dipakai sekali). Error `401` refresh token tidak valid / sudah dipakai / revoked / kedaluwarsa. **Ganti password (oleh diri sendiri atau admin) mencabut seluruh refresh token user** — sesi lama langsung tidak sah.
 
 ### GET `/api/v1/auth/me`
 
@@ -159,7 +160,7 @@ Response `200` ProdukOut; `404` tidak ditemukan.
 | `is_active` | bool | Default `true` |
 | `image` | file | Opsional; `image/jpeg|png|webp`, maks 2 MB |
 
-Response `201` ProdukOut. Jika kategori tidak ada → `404`. Jika upload gagal, file tidak tersisa (dibersihkan).
+Response `201` ProdukOut. Jika kategori tidak ada → `404`. Jika upload gagal, file tidak tersisa (dibersihkan). Tipe file divalidasi via **magic bytes** (bukan hanya ekstensi/MIME): file yang bukan `jpeg/png/webp` asli ditolak `422`.
 
 ### PUT `/api/v1/products/{id}` (JSON)
 
@@ -206,7 +207,9 @@ Body:
   ],
   "payment_method": "CASH",
   "paid_amount": 60000,
-  "discount": 0
+  "discount": 0,
+  "local_ref": "TX-9f3a1c2e...",       // opsional, idempoten offline (8..64 karakter)
+  "created_at_local": "2026-09-23T09:00:00+07:00"  // opsional, fase sinkron offline
 }
 ```
 
@@ -220,6 +223,11 @@ Aturan (`TransactionService`):
 - `change = paid - total`.
 - Status produk baru = `PAID` (langsung lunas), invoice `POS-YYYYMMDD-XXXX`.
 - Membuat audit log `transaction.create`.
+
+Field idempoten (sinkronisasi offline):
+
+- `local_ref` unik per pembayaran (opsional, 8..64). Backend menjadikannya **UNIQUE global** — kirim ulang dengan isi sama → mengembalikan transaksi yang sama **tanpa transaksi baru** (aman untuk ulang-pakai/replay jaringan); isi berbeda terhadap `local_ref` yang sama → `409 "local_ref sudah dipakai untuk transaksi dengan isi berbeda."`.
+- `created_at_local` (opsional, timezone-aware) menimpa `created_at` transaksi (fase sinkronisasi luring); ditolak bila > 5 menit ke masa depan.
 
 Response `201`.
 

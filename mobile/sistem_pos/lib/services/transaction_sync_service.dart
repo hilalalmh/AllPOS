@@ -109,8 +109,8 @@ class TransactionSyncService {
       'payment_method': paymentMethod,
       'paid_amount': _round2(paidAmount),
       'discount': _round2(discount),
-      'local_ref': ?localRef,
-      'created_at_local': ?createdAtLocal?.toIso8601String(),
+      if (localRef != null) 'local_ref': localRef,
+      if (createdAtLocal != null) 'created_at_local': createdAtLocal.toIso8601String(),
     });
     return Transaction.fromJson(response as Map<String, dynamic>);
   }

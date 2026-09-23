@@ -20,8 +20,7 @@ class StoreProfileService:
                 footer=DEFAULT_FOOTER,
             )
             self.db.add(profile)
-            self.db.commit()
-            self.db.refresh(profile)
+            self.db.flush()
         return profile
 
     def update_profile(self, payload: StoreProfileUpdate) -> StoreProfile:

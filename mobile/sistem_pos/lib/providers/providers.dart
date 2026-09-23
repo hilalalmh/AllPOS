@@ -194,8 +194,15 @@ class SyncNotifier extends StateNotifier<SyncState> {
   }
 
   Future<void> load() async {
-    final pending =
-        await transactionSyncService.store.all();
+    final all = await transactionSyncService.store.all();
+    final cashierId = _currentCashierId();
+    // Tampilkan hanya antrian milik kasir yang sedang login (plus baris
+    // legacy tanpa cashier_id) agar tidak bocor antar-akun di perangkat sama.
+    final pending = cashierId == null
+        ? all
+        : all
+            .where((t) => t.cashierId == null || t.cashierId == cashierId)
+            .toList();
     state = state.copyWith(pending: pending, error: null);
   }
 

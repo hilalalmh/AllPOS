@@ -72,6 +72,47 @@ def test_create_user_invalid_username(client):
     assert res.status_code == 422
 
 
+def test_create_user_password_over_72_bytes_rejected(client):
+    headers = _login(client, "owner", "admin123")
+    # 73 karakter ASCII = 73 byte > batas bcrypt 72 byte.
+    long_password = "a" * 73
+    res = client.post(
+        "/api/v1/users",
+        headers=headers,
+        json={
+            "username": "kasir_panjang",
+            "password": long_password,
+            "full_name": "Panjang",
+            "role": "KASIR",
+        },
+    )
+    assert res.status_code == 422
+    assert "72 byte" in res.text
+
+
+def test_update_user_password_over_72_bytes_rejected(client):
+    headers = _login(client, "owner", "admin123")
+    users = client.get("/api/v1/users?q=kasir2", headers=headers).json()
+    user_id = users["items"][0]["id"]
+
+    res = client.put(
+        f"/api/v1/users/{user_id}",
+        headers=headers,
+        json={"password": "b" * 73},
+    )
+    assert res.status_code == 422
+
+
+def test_change_own_password_over_72_bytes_rejected(client):
+    headers = _login(client, "kasir1", "kasir123")
+    res = client.put(
+        "/api/v1/users/me/password",
+        headers=headers,
+        json={"current_password": "kasir123", "new_password": "c" * 73},
+    )
+    assert res.status_code == 422
+
+
 def test_update_user_deactivate_and_role(client):
     headers = _login(client, "owner", "admin123")
     users = client.get("/api/v1/users?q=kasir2", headers=headers).json()

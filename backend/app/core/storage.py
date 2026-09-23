@@ -18,6 +18,25 @@ def upload_dir() -> Path:
     return directory
 
 
+def _matches_magic_bytes(content: bytes, content_type: str) -> bool:
+    """Cek isi file (bukan sekadar klaim MIME) untuk mencegah spoofing.
+
+    Aturan umum: file diskimpan dengan ekstensi sesuai content_type; bila
+    isinya tidak cocok dengan tipe yang diklaim, penyimpanan ditolak.
+    """
+    if content_type == "image/jpeg":
+        return content[:3] == b"\xff\xd8\xff"
+    if content_type == "image/png":
+        return content[:8] == b"\x89PNG\r\n\x1a\n"
+    if content_type == "image/webp":
+        return (
+            len(content) >= 12
+            and content[:4] == b"RIFF"
+            and content[8:12] == b"WEBP"
+        )
+    return False
+
+
 def save_image(file: UploadFile) -> str:
     if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -35,6 +54,11 @@ def save_image(file: UploadFile) -> str:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File kosong.",
+        )
+    if not _matches_magic_bytes(content, file.content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Isi file tidak cocok dengan tipe gambar yang diklaim.",
         )
 
     extension = ALLOWED_EXTENSIONS.get(file.content_type or "", ".bin")

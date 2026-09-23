@@ -58,19 +58,34 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const isRefreshCall = (config.url ?? "").includes("/auth/refresh");
-    if (error.response?.status !== 401 || isRefreshCall) {
+    const url = config.url ?? "";
+    const isLoginCall = url.includes("/auth/login");
+    const isRefreshCall = url.includes("/auth/refresh");
+    if (error.response?.status !== 401 || isLoginCall || isRefreshCall) {
       return Promise.reject(error);
     }
 
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
+      // Tanpa refresh token, sesi memang sudah habis — kabari UI agar
+      // "login palsu" tidak menampilkan layar yang terlihat masuk.
       clearAuth();
+      window.dispatchEvent(new Event("auth-expired"));
       return Promise.reject(error);
     }
 
     try {
       const tokens = await refreshTokens(refreshToken);
+      // Retry aman hanya untuk request idempotent atau pembuatan transaksi
+      // (dilindungi local_ref di sisi server). Request POST lain tidak boleh
+      // diulang otomatis agar efek samping tidak berlipat.
+      const method = (config.method ?? "get").toUpperCase();
+      const isIdempotent =
+        method === "GET" || method === "HEAD" || method === "OPTIONS";
+      const isTxCreate = method === "POST" && url.includes("/transactions");
+      if (!isIdempotent && !isTxCreate) {
+        return Promise.reject(error);
+      }
       config._retry = true;
       config.headers.Authorization = `Bearer ${tokens.access}`;
       return apiClient(config);

@@ -1,3 +1,10 @@
+import os
+
+# Pastikan test berjalan sebagai lingkungan "test" (bukan production/guard
+# keamanan) SEBELUM app/core/config.py di-import. setdefault agar env nyata
+# dari CI tetap dihormati.
+os.environ.setdefault("ENVIRONMENT", "test")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

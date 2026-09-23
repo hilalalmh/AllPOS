@@ -2,6 +2,18 @@ const ACCESS_KEY = "pos_access_token";
 const REFRESH_KEY = "pos_refresh_token";
 const USER_KEY = "pos_user";
 
+// Saat logout, refresh yang masih berjalan tidak boleh menulis token baru
+// (hasil rotasi) setelah clearAuth — kalau tidak, sesi "kembali hidup" diam-diam.
+let writesLocked = false;
+
+export function lockRefreshTokenWrites(): void {
+  writesLocked = true;
+}
+
+export function unlockRefreshTokenWrites(): void {
+  writesLocked = false;
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_KEY);
 }
@@ -21,6 +33,7 @@ export function getUser(): unknown | null {
 }
 
 export function setTokens(access: string, refresh: string): void {
+  if (writesLocked) return;
   localStorage.setItem(ACCESS_KEY, access);
   localStorage.setItem(REFRESH_KEY, refresh);
 }

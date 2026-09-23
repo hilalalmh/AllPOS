@@ -185,9 +185,7 @@ class _PendingTile extends ConsumerWidget {
                     label: const Text('Ulang'),
                   ),
                   TextButton.icon(
-                    onPressed: () => ref
-                        .read(syncNotifierProvider.notifier)
-                        .remove(item.id!),
+                    onPressed: () => _confirmRemove(context, ref, item.id!),
                     icon: const Icon(Icons.delete_outline),
                     label: const Text('Hapus'),
                   ),
@@ -198,5 +196,35 @@ class _PendingTile extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _confirmRemove(
+  BuildContext context,
+  WidgetRef ref,
+  int id,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Hapus transaksi tertunda?'),
+      content: const Text(
+        'Transaksi ini belum tercatat di server. '
+        'Penghapusan tidak bisa dibatalkan.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Hapus'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) {
+    await ref.read(syncNotifierProvider.notifier).remove(id);
   }
 }

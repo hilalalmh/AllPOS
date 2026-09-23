@@ -1,3 +1,4 @@
+import org.gradle.api.GradleException
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -14,6 +15,13 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
+
+val releaseSigningReady =
+    keystorePropertiesFile.exists() &&
+        keystoreProperties["storeFile"] != null &&
+        keystoreProperties["keyAlias"] != null &&
+        keystoreProperties["storePassword"] != null &&
+        keystoreProperties["keyPassword"] != null
 
 android {
     namespace = "com.sistempos.sistem_pos"
@@ -51,14 +59,35 @@ android {
 
     buildTypes {
         release {
-            // Pakai keystore release bila key.properties tersedia; fallback ke
-            // debug agar `flutter run --release` tetap jalan untuk development.
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Jika android/key.properties tidak ada, build DEBUG tetap boleh
+            // jalan (fallback ke debug), tapi pembuatan build rilis WAJIB
+            // ditolak — lihat guard gradle.taskGraph di bawah.
+            signingConfig =
+                if (releaseSigningReady) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
+    }
+}
+
+// Fail-closed: jangan pernah memproduksi APK/AAB rilis yang ke-tanda-tangani
+// dengan debug keystore secara diam-diam. Dilempar saat fase eksekusi saja,
+// sehingga build debug/profile tidak terganggu.
+gradle.taskGraph.whenReady {
+    val wantsReleasePackaging = allTasks.any { task ->
+        task.name.contains("Release") &&
+            (task.name.startsWith("assemble") ||
+                task.name.startsWith("bundle") ||
+                task.name.startsWith("package"))
+    }
+    if (wantsReleasePackaging && !releaseSigningReady) {
+        throw GradleException(
+            "Android release signing belum dikonfigurasi. " +
+                "Buat android/key.properties (lihat key.properties.example) " +
+                "sebelum menandatangani build rilis."
+        )
     }
 }
 

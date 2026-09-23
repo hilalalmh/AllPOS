@@ -27,6 +27,13 @@ class UserInactiveError(Exception):
     pass
 
 
+# Hash bcrypt untuk string dummy; dipakai saat username tidak ditemukan agar
+# waktu verifikasi serupa dengan username yang ada (anti username enumeration).
+_DUMMY_BCRYPT_HASH = (
+    "$2b$12$UNaQ.fIOEf0B0SCYFZIBZeunBjt79BWlhOaWsgHmc1LJtEqcUUngi"
+)
+
+
 class AuthService:
     def __init__(self, db: Session):
         self.db = db
@@ -34,7 +41,12 @@ class AuthService:
 
     def authenticate(self, username: str, password: str) -> User:
         user = self.users.get_by(username=username)
-        if user is None or not verify_password(password, user.password_hash):
+        # Username yang hilang tetap memverifikasi bcrypt dummy agar waktu
+        # respons tidak membedakan akun yang ada vs tidak ada (anti-enumeration).
+        if user is None:
+            verify_password(password, _DUMMY_BCRYPT_HASH)
+            raise InvalidCredentialsError("Username atau password salah.")
+        if not verify_password(password, user.password_hash):
             raise InvalidCredentialsError("Username atau password salah.")
         if not user.is_active:
             raise UserInactiveError("Akun tidak aktif.")

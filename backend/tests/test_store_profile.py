@@ -89,3 +89,14 @@ def test_update_store_profile_validation(client):
         headers=_headers(client, "owner", OWNER_PASSWORD),
     )
     assert resp.status_code == 422
+
+
+def test_update_store_profile_null_rejected(client):
+    """Kiriman null tidak boleh memicu 500 — harus 422 di validasi."""
+    for payload in ({"store_name": None}, {"footer": None}):
+        resp = client.put(
+            "/api/v1/store-profile",
+            json=payload,
+            headers=_headers(client, "owner", OWNER_PASSWORD),
+        )
+        assert resp.status_code == 422

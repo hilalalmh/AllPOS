@@ -59,7 +59,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   num _totalFor(CartState cart) {
     final discount = _discount.clamp(0, cart.subtotal);
-    return (cart.subtotal - discount).toDouble();
+    final total = (cart.subtotal - discount).toDouble();
+    // Bulatkan ke sen agar 5.050000000000001 (float) tidak membuat
+    // paid bernilai sama justru dianggap kurang oleh server.
+    return (total * 100).round() / 100;
+  }
+
+  String _refKey = '';
+  String _localRef = '';
+
+  // local_ref tetap stabil selama isi transaksi sama; dibuat ulang saat
+  // keranjang dikosongkan/berubah agar retry tidak menggandakan transaksi
+  // dan dua penjualan identik tidak saling dedup secara keliru.
+  String _localRefFor(CartState cart) {
+    if (cart.isEmpty) {
+      _refKey = '';
+      return '';
+    }
+    final items = cart.lines
+        .map((l) => '${l.product.id}:${l.quantity}:${l.product.price}')
+        .join('|');
+    final fingerprint = '$items|$_paymentMethod|$_discount|$_paid';
+    if (fingerprint != _refKey) {
+      _refKey = fingerprint;
+      _localRef = 'LOCAL-${DateTime.now().microsecondsSinceEpoch}';
+    }
+    return _localRef;
   }
 
   bool _canSubmit(CartState cart) {
@@ -92,6 +117,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         paidAmount: paid,
         discount: discount,
         cashierId: user.id,
+        localRef: _localRefFor(cart),
       );
       final cartNotifier = ref.read(cartProvider.notifier);
       if (!mounted) return;

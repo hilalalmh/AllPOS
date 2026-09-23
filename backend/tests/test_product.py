@@ -198,3 +198,44 @@ def test_upload_non_image_rejected(client, owner_headers):
     )
     assert res.status_code == 400
     assert "Format gambar" in res.json()["detail"]
+
+
+def test_upload_spoofed_mime_rejected(client, owner_headers):
+    """content_type dipalsukan PNG tapi isi bukan gambar → tolak magic-byte."""
+    res = client.post(
+        "/api/v1/products",
+        data={
+            "category_id": "1",
+            "name": "Spoof",
+            "sku": "SPOOF",
+            "price": "1000",
+        },
+        files={"image": ("spoof.png", b"<html>not-an-image</html>", "image/png")},
+        headers=owner_headers,
+    )
+    assert res.status_code == 400
+    assert "tidak cocok" in res.json()["detail"]
+
+
+def test_upload_real_png_accepted(client, owner_headers):
+    """PNG 1x1 asli dengan magic byte valid tetap diterima."""
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDAT"
+        b"\x08\xd7c\xf8\xcf\xc0\xf0\x1f\x00\x05\x05\x02\x00\x11\xb6\x11"
+        b"\x1c\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    res = client.post(
+        "/api/v1/products",
+        data={
+            "category_id": "1",
+            "name": "PNG Ok",
+            "sku": "PNGOK",
+            "price": "1000",
+        },
+        files={"image": ("ok.png", png, "image/png")},
+        headers=owner_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["image_url"].startswith("/uploads/")

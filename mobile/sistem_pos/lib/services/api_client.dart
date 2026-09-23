@@ -103,7 +103,7 @@ class ApiClient {
     final refreshToken = refreshTokenProvider?.call();
     if (refreshToken == null || refreshToken.isEmpty) return false;
     try {
-      final uri = Uri.parse('$baseUrl/auth/refresh');
+      final uri = Uri.parse('$baseUrl/api/v1/auth/refresh');
       final headers = <String, String>{
         'Accept': 'application/json',
         'Content-Type': 'application/json',

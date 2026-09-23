@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Sistem POS API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
-    ENVIRONMENT: str = "development"
+    # Fail-closed: tanpa ENVIRONMENT=development/test yang eksplisit,
+    # aplikasi diperlakukan sebagai production (guard keamanan aktif).
+    ENVIRONMENT: str = "production"
 
     DATABASE_URL: str = (
         "postgresql+psycopg://pos_user:pos_password@localhost:5432/sistem_pos"

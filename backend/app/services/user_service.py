@@ -124,17 +124,24 @@ class UserService:
         return user
 
     def _ensure_owner_remaining(self, user: User) -> None:
-        """Pastikan selalu ada minimal satu OWNER aktif setelah perubahan."""
+        """Pastikan selalu ada minimal satu OWNER aktif setelah perubahan.
+
+        SELECT … FOR UPDATE mengunci baris OWNER sehingga dua proses yang
+        menurunkan role/nonaktifkan OWNER tidak bisa melewati guard secara
+        bersamaan (transaksi kedua menunggu dan melihat hasil commit yang baru).
+        """
         owner_role_id = self.db.scalar(
             select(Role.id).where(Role.name == RoleEnum.OWNER.value)
         )
-        active_owners = self.db.scalar(
-            select(func.count(User.id)).where(
+        owner_ids = self.db.scalars(
+            select(User.id)
+            .where(
                 User.role_id == owner_role_id,
                 User.is_active.is_(True),
             )
-        )
-        if not active_owners:
+            .with_for_update()
+        ).all()
+        if not owner_ids:
             raise LastOwnerError(
                 "Harus selalu ada minimal satu OWNER yang aktif."
             )

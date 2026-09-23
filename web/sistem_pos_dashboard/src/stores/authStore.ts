@@ -7,8 +7,10 @@ import {
   getAccessToken,
   getRefreshToken,
   getUser,
+  lockRefreshTokenWrites,
   setTokens,
   setUser,
+  unlockRefreshTokenWrites,
 } from "../utils/token";
 import { useStoreProfileStore } from "./storeProfileStore";
 import type { AxiosError } from "axios";
@@ -26,6 +28,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   booting: true,
 
   login: async (username, password) => {
+    // Buka kembali penulisan token (setelah logout sebelumnya menguncinya).
+    unlockRefreshTokenWrites();
     const res = await apiLogin(username, password);
     setTokens(res.access_token, res.refresh_token);
     try {
@@ -60,6 +64,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    // Kunci penulisan token dulu: refresh yang sedang berjalan (dari request
+    // 401) tidak boleh mengembalikan token baru setelah clearAuth.
+    lockRefreshTokenWrites();
     const refresh = getRefreshToken();
     if (refresh) {
       void logoutRemote(refresh).catch(() => {

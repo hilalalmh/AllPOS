@@ -30,40 +30,54 @@ class TransactionSyncService {
       e is http.ClientException ||
       e is TimeoutException;
 
+  /// Error 5xx bersifat ambigu: server kemungkinan besar sudah mencatat
+  /// transaksi tapi respons tidak sampai. Dengan local_ref yang stabil,
+  /// antrian offline bisa di-replay dan server men-dedup tanpa duplikasi.
+  bool _isAmbiguousError(Object e) {
+    if (e is! ApiException) return false;
+    return e.statusCode >= 500;
+  }
+
+  static num _round2(num value) => (value * 100).round() / 100;
+
   Future<PayResult> createWithFallback({
     required List<CartItemInput> items,
     required String paymentMethod,
     required num paidAmount,
     required num discount,
     int? cashierId,
+    String? localRef,
   }) async {
     final now = DateTime.now();
-    final localRef = 'LOCAL-${now.microsecondsSinceEpoch}';
-    final subtotal = items.fold<num>(0, (sum, i) => sum + i.subtotal);
-    final total = (subtotal - discount).clamp(0, double.infinity);
-    final paid = paymentMethod == 'CASH' ? paidAmount : total;
-    final change = paymentMethod == 'CASH'
-        ? (paid - total).clamp(0, double.infinity)
-        : 0;
+    // localRef dihasilkan pemanggil (stabil per keranjang checkout) agar
+    // retry jaringan/5xx tidak menciptakan transaksi ganda di server.
+    final ref = localRef ?? 'LOCAL-${now.microsecondsSinceEpoch}';
+    final subtotal = _round2(items.fold<num>(0, (sum, i) => sum + i.subtotal));
+    final discountVal = _round2(discount.clamp(0, subtotal));
+    final total = _round2((subtotal - discountVal).clamp(0, double.infinity));
+    final paid = _round2(paymentMethod == 'CASH' ? paidAmount : total);
+    final change = _round2(
+      paymentMethod == 'CASH' ? (paid - total).clamp(0, double.infinity) : 0,
+    );
     try {
       final transaction = await _onlineCreate(
         items,
         paymentMethod,
         paid,
-        discount,
-        localRef: localRef,
+        discountVal,
+        localRef: ref,
         createdAtLocal: now,
       );
       return PayResult.fromTransaction(transaction);
     } catch (e) {
-      if (!_isNetworkError(e)) rethrow;
+      if (!_isNetworkError(e) && !_isAmbiguousError(e)) rethrow;
       final pending = await store.insert(
         PendingTransaction(
-          localRef: localRef,
+          localRef: ref,
           items: items,
           paymentMethod: paymentMethod,
           subtotal: subtotal,
-          discount: discount,
+          discount: discountVal,
           total: total,
           paidAmount: paid,
           changeAmount: change,
@@ -78,7 +92,7 @@ class TransactionSyncService {
         items: items,
         paymentMethod: paymentMethod,
         subtotal: subtotal,
-        discount: discount,
+        discount: discountVal,
         total: total,
         paidAmount: paid,
       );
@@ -98,8 +112,8 @@ class TransactionSyncService {
       {
         'items': [for (final i in items) i.toRequestJson()],
         'payment_method': paymentMethod,
-        'paid_amount': paidAmount,
-        'discount': discount,
+        'paid_amount': _round2(paidAmount),
+        'discount': _round2(discount),
         'local_ref': ?localRef,
         'created_at_local': ?createdAtLocal?.toIso8601String(),
       },

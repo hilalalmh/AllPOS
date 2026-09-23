@@ -13,6 +13,7 @@ import type {
   Transaction,
 } from "../types";
 import { formatDateTime, formatMoney, formatRupiah } from "../utils/format";
+import { randomUuid } from "../utils/uuid";
 
 interface CartLine {
   product: Product;
@@ -24,6 +25,12 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   QRIS: "QRIS",
   TRANSFER: "Transfer",
 };
+
+// Bulatkan ke sen agar presisi float (mis. 5.050000000000001) tidak membuat
+// klien mengirim nilai 0.001 lebih kecil/gemuk dari yang divisualisasikan.
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 
 export default function PosPage() {
   const user = useAuthStore((s) => s.user);
@@ -53,7 +60,7 @@ export default function PosPage() {
     );
     if (key !== cartKeyRef.current) {
       cartKeyRef.current = key;
-      clientRefRef.current = crypto.randomUUID();
+      clientRefRef.current = randomUuid();
     }
   }, [cart]);
 
@@ -103,10 +110,10 @@ export default function PosPage() {
     () => cart.reduce((sum, line) => sum + line.product.price * line.quantity, 0),
     [cart]
   );
-  const discountValue = Number(discount) || 0;
-  const total = Math.max(subtotal - discountValue, 0);
-  const paidValue = Number(paid) || 0;
-  const change = paidValue - total;
+  const discountValue = round2(Number(discount) || 0);
+  const total = Math.max(round2(subtotal - discountValue), 0);
+  const paidValue = round2(Number(paid) || 0);
+  const change = round2(paidValue - total);
 
   function addToCart(product: Product) {
     setCart((prev) => {

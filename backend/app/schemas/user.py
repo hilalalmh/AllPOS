@@ -1,7 +1,19 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# bcrypt hanya memproses 72 byte pertama; password lebih panjang diam-diam
+# terpotong hingga berbenturan dengan password lain yang memiliki awalan sama.
+BCRYPT_MAX_BYTES = 72
+
+
+def _ensure_bcrypt_bytes(value: str) -> str:
+    if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError(
+            f"Password maksimal {BCRYPT_MAX_BYTES} byte (UTF-8)."
+        )
+    return value
 
 
 class UserOut(BaseModel):
@@ -36,6 +48,8 @@ class UserCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=100)
     role: Literal["OWNER", "KASIR"] = "KASIR"
 
+    _password_bytes = field_validator("password")(_ensure_bcrypt_bytes)
+
 
 class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -43,7 +57,11 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=6, max_length=128)
 
+    _password_bytes = field_validator("password")(_ensure_bcrypt_bytes)
+
 
 class PasswordChange(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=6, max_length=128)
+
+    _new_password_bytes = field_validator("new_password")(_ensure_bcrypt_bytes)

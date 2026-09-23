@@ -8,10 +8,12 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   useEffect(() => {
-    if (window.localStorage.getItem("pos_access_token") && !user) {
+    if (window.localStorage.getItem("pos_access_token")) {
       void loadMe();
+    } else {
+      useAuthStore.setState({ booting: false });
     }
-  }, [user, loadMe]);
+  }, [loadMe]);
 
   useEffect(() => {
     const onExpired = () => useAuthStore.getState().logout();

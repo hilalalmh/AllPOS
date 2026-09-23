@@ -70,7 +70,8 @@ class DashboardService:
     ) -> list[SalesPoint]:
         start, end = resolve_range(start_date, end_date)
         fmt = "YYYY-MM" if group_by == "month" else "YYYY-MM-DD"
-        period_expr = func.to_char(Transaction.created_at, fmt).label("period")
+        wib_expr = Transaction.created_at.op("AT TIME ZONE")("Asia/Jakarta")
+        period_expr = func.to_char(wib_expr, fmt).label("period")
         stmt = (
             select(
                 period_expr,

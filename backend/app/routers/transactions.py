@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,7 @@ from app.services.transaction_service import (
     TransactionService,
     TransactionValidationError,
 )
+from app.utils.dates import clamp_date_range
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -51,13 +54,14 @@ def list_transactions(
     cashier_id: int | None = Query(default=None),
     payment_method: str | None = Query(default=None),
     status: str | None = Query(default=None),
-    start_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    end_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     service: TransactionService = Depends(_get_service),
 ):
+    start_date, end_date = clamp_date_range(start_date, end_date)
     items, total = service.list_transactions(
         current_user,
         q=q,

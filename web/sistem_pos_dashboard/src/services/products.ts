@@ -4,6 +4,7 @@ import type { Product, ProductList } from "../types";
 export interface ProductQuery {
   q?: string;
   category_id?: number;
+  include_inactive?: boolean;
   page?: number;
   page_size?: number;
 }

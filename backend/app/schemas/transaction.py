@@ -20,6 +20,7 @@ class TransactionCreateRequest(BaseModel):
         default=Decimal("0"), ge=0, max_digits=12, decimal_places=2
     )
     local_ref: str | None = Field(default=None, min_length=8, max_length=64)
+    created_at_local: datetime | None = None
 
 
 class TransactionItemOut(BaseModel):

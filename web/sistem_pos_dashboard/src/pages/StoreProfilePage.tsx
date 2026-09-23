@@ -18,11 +18,17 @@ export default function StoreProfilePage() {
 
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setSuccess(null);
+    setSaveError(null);
+  }, [profile]);
 
   useEffect(() => {
     if (profile) {
@@ -64,7 +70,8 @@ export default function StoreProfilePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg(null);
+    setSaveError(null);
+    setSuccess(null);
     try {
       await save({
         store_name: form.store_name,
@@ -72,9 +79,9 @@ export default function StoreProfilePage() {
         phone: form.phone || null,
         footer: form.footer,
       });
-      setMsg("Profil toko berhasil disimpan.");
+      setSuccess("Profil toko berhasil disimpan.");
     } catch (err) {
-      setMsg(`Gagal menyimpan: ${(err as Error).message}`);
+      setSaveError(`Gagal menyimpan: ${(err as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -89,7 +96,8 @@ export default function StoreProfilePage() {
       </p>
 
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      {msg && <p className="mb-3 text-sm text-emerald-700">{msg}</p>}
+      {saveError && <p className="mb-3 text-sm text-red-600">{saveError}</p>}
+      {success && <p className="mb-3 text-sm text-emerald-700">{success}</p>}
 
       <form
         onSubmit={handleSubmit}

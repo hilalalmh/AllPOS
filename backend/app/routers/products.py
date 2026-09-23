@@ -53,15 +53,21 @@ def _raise(exc: Exception) -> None:
 def list_products(
     q: str | None = Query(default=None, max_length=100),
     category_id: int | None = Query(default=None),
+    include_inactive: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: ProductService = Depends(_get_service),
-    _: object = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    if include_inactive and current_user.role.name != RoleEnum.OWNER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Hanya OWNER yang boleh melihat produk nonaktif.",
+        )
     items, total = service.list_products(
         q=q,
         category_id=category_id,
-        include_inactive=False,
+        include_inactive=include_inactive,
         page=page,
         page_size=page_size,
     )

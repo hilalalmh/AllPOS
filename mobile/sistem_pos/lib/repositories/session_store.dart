@@ -75,6 +75,16 @@ class SessionStore {
     await _prefs.setInt(_printerTypeKey, device.type);
   }
 
+  Future<void> clearLastPrinter() async {
+    await _prefs.remove(_printerNameKey);
+    await _prefs.remove(_printerAddressKey);
+    await _prefs.remove(_printerTypeKey);
+  }
+
+  Future<void> clearLastReceipt() async {
+    await _prefs.remove(_lastReceiptKey);
+  }
+
   ReceiptData? get lastReceipt {
     final raw = _prefs.getString(_lastReceiptKey);
     if (raw == null) return null;

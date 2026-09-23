@@ -1,17 +1,22 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import SessionLocal
 
 router = APIRouter()
 
 
 @router.get("/health")
-def health_check(db: Session = Depends(get_db)):
-    db_status = "ok"
+def health_check():
+    db_status = "unavailable"
     try:
-        db.execute(text("SELECT 1"))
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            db.commit()
+            db_status = "ok"
+        finally:
+            db.close()
     except Exception:
         db_status = "unavailable"
     return {

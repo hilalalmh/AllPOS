@@ -11,8 +11,8 @@ export default function RequireRole({
   children: ReactNode;
 }) {
   const user = useAuthStore((s) => s.user);
-  if (user?.role !== role) {
-    return <Navigate to="/" replace />;
+  if (user && user.role !== role) {
+    return <Navigate to={role === "KASIR" ? "/" : "/pos"} replace />;
   }
   return <>{children}</>;
 }

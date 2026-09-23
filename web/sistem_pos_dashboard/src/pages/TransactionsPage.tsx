@@ -7,6 +7,7 @@ import {
   Spinner,
   StatusBadge,
 } from "../components/ui";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import {
   cancelTransaction,
   fetchTransactions,
@@ -29,15 +30,6 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   QRIS: "QRIS",
   TRANSFER: "Transfer",
 };
-
-function useDebouncedValue<T>(value: T, delayMs = 400): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(t);
-  }, [value, delayMs]);
-  return debounced;
-}
 
 export default function TransactionsPage() {
   const isOwner = useAuthStore((s) => s.user?.role === "OWNER");
@@ -83,6 +75,10 @@ export default function TransactionsPage() {
       if (seq === seqRef.current) setLoading(false);
     }
   }, [debouncedQ, status, method, startDate, endDate, page, reloadKey]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, status, method, startDate, endDate]);
 
   useEffect(() => {
     void load();

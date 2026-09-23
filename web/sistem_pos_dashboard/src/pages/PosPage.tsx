@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorAlert, Modal, Spinner } from "../components/ui";
 import { fetchCategories } from "../services/categories";
@@ -42,23 +42,48 @@ export default function PosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Transaction | null>(null);
 
+  const cartKeyRef = useRef("");
+  const clientRefRef = useRef<string | null>(null);
+
+  // Idempotensi: buat local_ref tetap utuh selama isi keranjang sama,
+  // agar klien yang retry tidak menciptakan transaksi ganda.
+  useEffect(() => {
+    const key = JSON.stringify(
+      cart.map((l) => [l.product.id, l.quantity, l.product.price])
+    );
+    if (key !== cartKeyRef.current) {
+      cartKeyRef.current = key;
+      clientRefRef.current = crypto.randomUUID();
+    }
+  }, [cart]);
+
   useEffect(() => {
     let cancelled = false;
     storeProfileLoad();
-    Promise.all([fetchProducts({ page_size: 100 }), fetchCategories()])
-      .then(([productsData, categoriesData]) => {
+    (async function loadAll() {
+      const pageSize = 100;
+      const all: Product[] = [];
+      let page = 1;
+      try {
+        while (true) {
+          const res = await fetchProducts({ page, page_size: pageSize });
+          all.push(...res.items);
+          if (page * pageSize >= res.total || res.items.length === 0) {
+            break;
+          }
+          page += 1;
+        }
         if (cancelled) return;
-        setProducts(productsData.items);
-        setCategories(categoriesData);
-      })
-      .catch((err) => {
+        setProducts(all);
+        setCategories(await fetchCategories());
+      } catch (err) {
         if (cancelled) return;
         setError("Gagal memuat produk.");
         console.error(err);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -132,7 +157,9 @@ export default function PosPage() {
         payment_method: method,
         paid_amount: paidValue,
         discount: discountValue,
+        local_ref: clientRefRef.current ?? undefined,
       });
+      clientRefRef.current = null;
       setCart([]);
       setPaid("");
       setDiscount("");

@@ -73,6 +73,10 @@ export default function AuditTrailPage() {
   }, [action, entityType, startDate, endDate, page, reloadKey]);
 
   useEffect(() => {
+    setPage(1);
+  }, [action, entityType, startDate, endDate]);
+
+  useEffect(() => {
     void load();
   }, [load]);
 

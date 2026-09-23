@@ -12,6 +12,7 @@ from app.schemas.dashboard import (
     SalesPoint,
 )
 from app.services.dashboard_service import DashboardService
+from app.utils.dates import clamp_date_range
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -27,6 +28,7 @@ def dashboard_summary(
     service: DashboardService = Depends(_get_service),
     _: object = Depends(require_roles(RoleEnum.OWNER)),
 ):
+    start_date, end_date = clamp_date_range(start_date, end_date)
     return service.summary(start_date, end_date)
 
 
@@ -38,6 +40,7 @@ def sales_series(
     service: DashboardService = Depends(_get_service),
     _: object = Depends(require_roles(RoleEnum.OWNER)),
 ):
+    start_date, end_date = clamp_date_range(start_date, end_date)
     return service.sales_series(start_date, end_date, group_by)
 
 
@@ -49,4 +52,5 @@ def best_sellers(
     service: DashboardService = Depends(_get_service),
     _: object = Depends(require_roles(RoleEnum.OWNER)),
 ):
+    start_date, end_date = clamp_date_range(start_date, end_date)
     return BestSellerList(items=service.best_sellers(start_date, end_date, limit))

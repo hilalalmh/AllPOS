@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Sistem POS API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
 
     DATABASE_URL: str = (
         "postgresql+psycopg://pos_user:pos_password@localhost:5432/sistem_pos"
@@ -24,6 +25,8 @@ class Settings(BaseSettings):
     JWT_REFRESH_EXPIRES_DAYS: int = 7
 
     SEED_ADMIN_PASSWORD: str = "admin123"
+    LOGIN_MAX_FAILURES: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
 
     UPLOAD_DIR: Path = Path("uploads")
     MAX_UPLOAD_SIZE: int = 2 * 1024 * 1024  # 2 MB

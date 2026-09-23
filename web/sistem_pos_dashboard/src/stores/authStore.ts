@@ -10,6 +10,7 @@ import {
   setUser,
 } from "../utils/token";
 import { useStoreProfileStore } from "./storeProfileStore";
+import type { AxiosError } from "axios";
 
 interface AuthState {
   user: UserMe | null;
@@ -26,9 +27,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (username, password) => {
     const res = await apiLogin(username, password);
     setTokens(res.access_token, res.refresh_token);
-    const me = await fetchMe();
-    setUser(me);
-    set({ user: me });
+    try {
+      const me = await fetchMe();
+      setUser(me);
+      set({ user: me });
+    } catch (err) {
+      clearAuth();
+      set({ user: null, booting: false });
+      throw err;
+    }
   },
 
   loadMe: async () => {
@@ -40,9 +47,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       const me = await fetchMe();
       setUser(me);
       set({ user: me, booting: false });
-    } catch {
-      clearAuth();
-      set({ user: null, booting: false });
+    } catch (err) {
+      const isUnauthorized = (err as AxiosError)?.response?.status === 401;
+      if (isUnauthorized) {
+        clearAuth();
+        set({ user: null, booting: false });
+      } else {
+        set({ booting: false });
+      }
     }
   },
 
@@ -50,6 +62,5 @@ export const useAuthStore = create<AuthState>((set) => ({
     clearAuth();
     set({ user: null });
     useStoreProfileStore.getState().reset();
-    window.dispatchEvent(new Event("auth-expired"));
   },
 }));

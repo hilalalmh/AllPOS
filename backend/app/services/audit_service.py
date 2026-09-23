@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from typing import Any
 
 from sqlalchemy import func, select
@@ -39,8 +39,8 @@ class AuditService:
         action: str | None,
         entity_type: str | None,
         user_id: int | None,
-        start_date: str | None,
-        end_date: str | None,
+        start_date: date | None,
+        end_date: date | None,
         q: str | None,
     ) -> list[Any]:
         filters = []
@@ -53,11 +53,9 @@ class AuditService:
         if q:
             filters.append(AuditLog.action.ilike(f"%{q.strip()}%"))
         if start_date:
-            parsed = datetime.strptime(start_date, "%Y-%m-%d").date()
-            filters.append(AuditLog.created_at >= start_datetime(parsed))
+            filters.append(AuditLog.created_at >= start_datetime(start_date))
         if end_date:
-            parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
-            filters.append(AuditLog.created_at <= end_datetime(parsed))
+            filters.append(AuditLog.created_at <= end_datetime(end_date))
         return filters
 
     def list_logs(
@@ -66,8 +64,8 @@ class AuditService:
         action: str | None = None,
         entity_type: str | None = None,
         user_id: int | None = None,
-        start_date: str | None = None,
-        end_date: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
         q: str | None = None,
         page: int = 1,
         page_size: int = 20,

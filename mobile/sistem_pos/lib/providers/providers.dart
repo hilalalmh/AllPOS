@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +19,7 @@ import '../services/offline_transaction_store.dart';
 import '../services/printer_service.dart';
 import '../services/receipt_service.dart';
 import '../services/transaction_sync_service.dart';
+import 'cart_provider.dart';
 
 final sharedPrefsProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('Override sharedPrefsProvider di main()'),
@@ -26,12 +29,26 @@ final sessionStoreProvider = Provider<SessionStore>(
   (ref) => SessionStore(ref.watch(sharedPrefsProvider)),
 );
 
-final apiClientProvider = Provider<ApiClient>(
-  (ref) => ApiClient(
+final authExpiredEventsProvider = Provider<StreamController<void>>((ref) {
+  final controller = StreamController<void>.broadcast();
+  ref.onDispose(controller.close);
+  return controller;
+});
+
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final sessionStore = ref.watch(sessionStoreProvider);
+  final authExpired = ref.watch(authExpiredEventsProvider);
+  return ApiClient(
     baseUrl: AppConfig.apiBaseUrl,
-    tokenProvider: () => ref.watch(sessionStoreProvider).accessToken,
-  ),
-);
+    tokenProvider: () => sessionStore.accessToken,
+    refreshTokenProvider: () => sessionStore.refreshToken,
+    onTokensSaved: (access, refresh) =>
+        sessionStore.saveTokens(access, refresh),
+    onAuthExpired: () async {
+      authExpired.add(null);
+    },
+  );
+});
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(
@@ -60,14 +77,24 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repo) : super(AuthState(user: _repo.store.user));
+  AuthNotifier(this._repo, this._ref) : super(AuthState(user: _repo.store.user)) {
+    _expiredSub = _ref
+        .read(authExpiredEventsProvider)
+        .stream
+        .listen((_) => logout());
+  }
 
   final AuthRepository _repo;
+  final Ref _ref;
+  StreamSubscription<void>? _expiredSub;
 
   Future<void> login(String username, String password) async {
     state = state.copyWith(loading: true, error: null);
     try {
       final user = await _repo.login(username.trim(), password);
+      _ref.read(cartProvider.notifier).clear();
+      _ref.invalidate(productsProvider);
+      _ref.invalidate(storeProfileNotifierProvider);
       state = state.copyWith(user: user, loading: false);
     } catch (e) {
       state = state.copyWith(loading: false, error: _message(e));
@@ -75,7 +102,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    _ref.read(cartProvider.notifier).clear();
     await _repo.logout();
+    await _ref.read(sessionStoreProvider).clearLastReceipt();
+    await _ref.read(syncNotifierProvider.notifier).load();
     state = const AuthState();
   }
 
@@ -83,11 +113,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (e is ApiException) return e.message;
     return e.toString();
   }
+
+  @override
+  void dispose() {
+    _expiredSub?.cancel();
+    super.dispose();
+  }
 }
 
-final authNotifierProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(authRepositoryProvider));
+final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  return AuthNotifier(ref.watch(authRepositoryProvider), ref);
 });
 
 final productRepositoryProvider = Provider<ProductRepository>(
@@ -195,7 +230,22 @@ final syncNotifierProvider =
 });
 
 final productsProvider = FutureProvider<List<Product>>(
-  (ref) => ref.watch(productRepositoryProvider).fetchProducts(),
+  (ref) async {
+    final repo = ref.watch(productRepositoryProvider);
+    const pageSize = 100;
+    final all = <Product>[];
+    var page = 1;
+    while (page <= 200) {
+      final response = await repo.fetchPage(page: page, pageSize: pageSize);
+      all.addAll(response.items);
+      if (response.page * pageSize >= response.total ||
+          response.items.length < pageSize) {
+        break;
+      }
+      page += 1;
+    }
+    return all;
+  },
 );
 
 final storeProfileRepositoryProvider = Provider<StoreProfileRepository>(
@@ -311,10 +361,10 @@ class PrinterState {
     bool? scanning,
     bool? connected,
     List<PrinterDevice>? devices,
-    PrinterDevice? connectedDevice,
+    Object? connectedDevice = _unset,
     PaperSize? paperSize,
     bool? busy,
-    ReceiptData? lastReceipt,
+    Object? lastReceipt = _unset,
     Object? lastError = _unset,
   }) =>
       PrinterState(
@@ -323,10 +373,14 @@ class PrinterState {
         scanning: scanning ?? this.scanning,
         connected: connected ?? this.connected,
         devices: devices ?? this.devices,
-        connectedDevice: connectedDevice ?? this.connectedDevice,
+        connectedDevice: identical(connectedDevice, _unset)
+            ? this.connectedDevice
+            : connectedDevice as PrinterDevice?,
         paperSize: paperSize ?? this.paperSize,
         busy: busy ?? this.busy,
-        lastReceipt: lastReceipt ?? this.lastReceipt,
+        lastReceipt: identical(lastReceipt, _unset)
+            ? this.lastReceipt
+            : lastReceipt as ReceiptData?,
         lastError: identical(lastError, _unset)
             ? this.lastError
             : lastError as String?,
@@ -399,9 +453,19 @@ class PrinterNotifier extends StateNotifier<PrinterState> {
     state = state.copyWith(busy: true, lastError: null);
     try {
       await printerService.disconnect();
-      state = state.copyWith(busy: false, connected: false, connectedDevice: null);
+      await sessionStore.clearLastPrinter();
+      state = state.copyWith(
+        busy: false,
+        connected: false,
+        connectedDevice: null,
+      );
     } catch (e) {
-      state = state.copyWith(busy: false, lastError: _message(e));
+      state = state.copyWith(
+        busy: false,
+        connected: false,
+        connectedDevice: null,
+        lastError: _message(e),
+      );
     }
   }
 

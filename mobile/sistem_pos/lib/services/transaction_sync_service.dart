@@ -51,6 +51,7 @@ class TransactionSyncService {
         paid,
         discount,
         localRef: localRef,
+        createdAtLocal: now,
       );
       return PayResult.fromTransaction(transaction);
     } catch (e) {
@@ -88,6 +89,7 @@ class TransactionSyncService {
     num paidAmount,
     num discount, {
     String? localRef,
+    DateTime? createdAtLocal,
   }) async {
     final response = await api.post(
       '/api/v1/transactions',
@@ -97,6 +99,7 @@ class TransactionSyncService {
         'paid_amount': paidAmount,
         'discount': discount,
         'local_ref': ?localRef,
+        'created_at_local': ?createdAtLocal?.toIso8601String(),
       },
     );
     return Transaction.fromJson(response as Map<String, dynamic>);
@@ -116,6 +119,7 @@ class TransactionSyncService {
           item.paidAmount,
           item.discount,
           localRef: item.localRef,
+          createdAtLocal: item.createdAtLocal,
         );
         await store.markSynced(item.id!, transaction.invoiceNumber);
         synced++;

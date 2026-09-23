@@ -14,6 +14,15 @@ def end_datetime(d: date) -> datetime:
     return datetime.combine(d, time.max, tzinfo=BUSINESS_TZ)
 
 
+def clamp_date_range(
+    start_date: date | None, end_date: date | None
+) -> tuple[date | None, date | None]:
+    """Clamp rentang agar start <= end (swap bila terbalik)."""
+    if start_date is not None and end_date is not None and end_date < start_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
 def business_day_bounds(
     start_date: date | None, end_date: date | None
 ) -> tuple[datetime, datetime]:

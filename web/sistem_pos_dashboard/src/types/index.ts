@@ -97,6 +97,8 @@ export interface TransactionCreateRequest {
   payment_method: PaymentMethod;
   paid_amount: number;
   discount: number;
+  local_ref?: string;
+  created_at_local?: string;
 }
 
 export interface SalesPoint {

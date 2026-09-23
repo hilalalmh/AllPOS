@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
@@ -7,6 +9,7 @@ from app.core.deps import require_roles
 from app.models import RoleEnum, User
 from app.services.audit_service import record_audit
 from app.services.report_service import ReportService
+from app.utils.dates import clamp_date_range
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -16,11 +19,12 @@ def _get_service(db: Session = Depends(get_db)) -> ReportService:
 
 
 def _report_params(
-    start_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    end_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     payment_method: str | None = Query(default=None),
     status: str | None = Query(default=None),
 ):
+    start_date, end_date = clamp_date_range(start_date, end_date)
     return {
         "start_date": start_date,
         "end_date": end_date,

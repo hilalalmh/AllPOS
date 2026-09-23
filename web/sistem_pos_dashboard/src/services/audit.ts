@@ -36,7 +36,7 @@ export async function downloadReport(
   });
 
   if (format === "csv") {
-    const blob = new Blob([data as string], {
+    const blob = new Blob(["\uFEFF", data as string], {
       type: "text/csv;charset=utf-8",
     });
     triggerDownload(blob, "transactions.csv");

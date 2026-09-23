@@ -27,6 +27,29 @@ interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+// Single-flight: semua request 401 menunggu proses refresh yang sama,
+// agar tidak terjadi refresh token race / token berubah di tengah jalan.
+let refreshPromise: Promise<{ access: string; refresh: string }> | null = null;
+
+function refreshTokens(refreshToken: string) {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post<{ access_token: string; refresh_token: string }>(
+        "/api/v1/auth/refresh",
+        { refresh_token: refreshToken }
+      )
+      .then((res) => {
+        const { access_token, refresh_token } = res.data;
+        setTokens(access_token, refresh_token);
+        return { access: access_token, refresh: refresh_token };
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -47,13 +70,9 @@ apiClient.interceptors.response.use(
     }
 
     try {
-      const { data } = await axios.post<{
-        access_token: string;
-        refresh_token: string;
-      }>("/api/v1/auth/refresh", { refresh_token: refreshToken });
-      setTokens(data.access_token, data.refresh_token);
+      const tokens = await refreshTokens(refreshToken);
       config._retry = true;
-      config.headers.Authorization = `Bearer ${data.access_token}`;
+      config.headers.Authorization = `Bearer ${tokens.access}`;
       return apiClient(config);
     } catch {
       clearAuth();

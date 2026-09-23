@@ -8,6 +8,26 @@ from app.core.config import settings
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 
+_WEAK_SECRETS = {"change-me-in-production", "dev-secret-change-me", "secret"}
+
+
+def assert_secure_config() -> None:
+    """Fail fast di lingkungan produksi bila secret lemah/default."""
+    if settings.ENVIRONMENT != "production":
+        return
+    if (
+        not settings.JWT_SECRET
+        or len(settings.JWT_SECRET) < 32
+        or settings.JWT_SECRET in _WEAK_SECRETS
+    ):
+        raise RuntimeError(
+            "JWT_SECRET harus minimal 32 karakter acak saat ENVIRONMENT=production."
+        )
+    if settings.SEED_ADMIN_PASSWORD == "admin123":
+        raise RuntimeError(
+            "SEED_ADMIN_PASSWORD masih default (admin123). Ganti sebelum produksi."
+        )
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")

@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -14,7 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Transaction, TransactionStatus
-from app.utils.dates import end_datetime, start_datetime
+from app.utils.dates import BUSINESS_TZ, end_datetime, start_datetime
+
+# Batas jumlah baris ekspor (melindungi memory; laporkan pemotongan di output)
+MAX_EXPORT_ROWS = 10_000
 
 
 class ReportService:
@@ -24,18 +27,16 @@ class ReportService:
     def _filters(
         self,
         *,
-        start_date: str | None,
-        end_date: str | None,
+        start_date: date | None,
+        end_date: date | None,
         payment_method: str | None,
         status: str | None,
     ) -> list[Any]:
         filters = []
         if start_date:
-            parsed = datetime.strptime(start_date, "%Y-%m-%d").date()
-            filters.append(Transaction.created_at >= start_datetime(parsed))
+            filters.append(Transaction.created_at >= start_datetime(start_date))
         if end_date:
-            parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
-            filters.append(Transaction.created_at <= end_datetime(parsed))
+            filters.append(Transaction.created_at <= end_datetime(end_date))
         if payment_method:
             filters.append(Transaction.payment_method == payment_method.upper())
         if status:
@@ -43,8 +44,8 @@ class ReportService:
         return filters
 
     def transactions(self, *, cashier_id: int | None = None,
-                     start_date: str | None = None,
-                     end_date: str | None = None,
+                     start_date: date | None = None,
+                     end_date: date | None = None,
                      payment_method: str | None = None,
                      status: str | None = None) -> list[Transaction]:
         filters = self._filters(
@@ -60,17 +61,26 @@ class ReportService:
             .options(joinedload(Transaction.cashier))
             .where(*filters)
             .order_by(Transaction.id.desc())
+            .limit(MAX_EXPORT_ROWS + 1)
         )
-        return list(self.db.scalars(stmt).all())
+        rows = list(self.db.scalars(stmt).all())
+        self.truncated = len(rows) > MAX_EXPORT_ROWS
+        return rows[:MAX_EXPORT_ROWS]
 
     @staticmethod
     def _to_rows(transactions: list[Transaction]) -> list[list[str]]:
         rows = []
         for t in transactions:
+            created = t.created_at
+            if created is not None:
+                if created.tzinfo is not None:
+                    created = created.astimezone(BUSINESS_TZ)
+                else:
+                    created = created.replace(tzinfo=BUSINESS_TZ)
             rows.append([
                 t.invoice_number,
                 t.cashier.username if t.cashier else "",
-                t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else "",
+                created.strftime("%Y-%m-%d %H:%M:%S") if created else "",
                 t.payment_method,
                 t.status,
                 f"{t.subtotal:.2f}",
@@ -82,8 +92,8 @@ class ReportService:
         return rows
 
     def transactions_csv(self, *, cashier_id: int | None = None,
-                         start_date: str | None = None,
-                         end_date: str | None = None,
+                         start_date: date | None = None,
+                         end_date: date | None = None,
                          payment_method: str | None = None,
                          status: str | None = None) -> str:
         transactions = self.transactions(
@@ -100,11 +110,16 @@ class ReportService:
             "subtotal", "discount", "total", "paid_amount", "change_amount",
         ])
         writer.writerows(self._to_rows(transactions))
+        if self.truncated:
+            writer.writerow(
+                ["# CATATAN: Data dipotong (lebih dari "
+                 f"{MAX_EXPORT_ROWS} baris)."]
+            )
         return buffer.getvalue()
 
     def transactions_pdf(self, *, cashier_id: int | None = None,
-                         start_date: str | None = None,
-                         end_date: str | None = None,
+                         start_date: date | None = None,
+                         end_date: date | None = None,
                          payment_method: str | None = None,
                          status: str | None = None) -> bytes:
         transactions = self.transactions(
@@ -146,13 +161,27 @@ class ReportService:
         ]))
 
         if transactions:
-            total_sales = sum((t.total or Decimal("0")) for t in transactions
-                              if t.status != TransactionStatus.CANCELLED.value)
+            cancelled = sum(
+                1
+                for t in transactions
+                if t.status == TransactionStatus.CANCELLED.value
+            )
+            total_sales = sum(
+                (t.total or Decimal("0"))
+                for t in transactions
+                if t.status != TransactionStatus.CANCELLED.value
+            )
             summary = Paragraph(
-                f"Total transaksi: {len(transactions)} | Total penjualan (non-batal): "
+                f"Total transaksi: {len(transactions)} (dibatalkan: {cancelled}) | "
+                f"Total penjualan (non-batal): "
                 f"Rp{float(total_sales):,.2f}".replace(",", "."),
                 styles["Normal"],
             )
+            if self.truncated:
+                summary = Paragraph(
+                    f"{summary.text} | Data dipotong (> {MAX_EXPORT_ROWS} baris)",
+                    styles["Normal"],
+                )
         else:
             summary = Paragraph("Tidak ada data.", styles["Normal"])
 

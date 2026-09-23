@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -7,6 +9,8 @@ from app.models import RoleEnum, User
 from app.schemas.store_profile import StoreProfileOut, StoreProfileUpdate
 from app.services.audit_service import record_audit
 from app.services.store_profile_service import StoreProfileService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/store-profile", tags=["store-profile"])
 
@@ -23,8 +27,12 @@ def get_store_profile(
     """Ambil profil toko (singleton). Akses: semua role terautentikasi."""
     try:
         return service.get_profile()
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Gagal memuat profil: {exc}") from exc
+    except Exception:
+        logger.exception("Gagal memuat profil toko")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Gagal memuat profil toko.",
+        )
 
 
 @router.put("", response_model=StoreProfileOut)
@@ -36,8 +44,12 @@ def update_store_profile(
     """Perbarui profil toko (nama, alamat, telp, footer struk). Hanya OWNER."""
     try:
         profile = service.update_profile(payload)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Gagal menyimpan profil: {exc}") from exc
+    except Exception:
+        logger.exception("Gagal menyimpan profil toko")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Gagal menyimpan profil toko.",
+        )
     record_audit(
         service.db,
         user=current_user,

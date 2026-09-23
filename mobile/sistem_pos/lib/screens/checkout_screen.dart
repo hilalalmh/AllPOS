@@ -9,6 +9,19 @@ import '../providers/providers.dart';
 import '../utils/money.dart';
 import 'payment_success_screen.dart';
 
+class RegexInputFormatterMaxTwoDecimal extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    final match = RegExp(r'^\d*(\.\d{0,2})?$').hasMatch(text);
+    if (!match) return oldValue;
+    return newValue;
+  }
+}
+
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
 
@@ -35,8 +48,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  num get _discount => num.tryParse(_discountController.text) ?? 0;
-  num get _paid => num.tryParse(_paidController.text) ?? 0;
+  num get _discount => _toMoney(_discountController.text);
+  num get _paid => _toMoney(_paidController.text);
+
+  num _toMoney(String text) {
+    final value = num.tryParse(text);
+    if (value == null) return 0;
+    return (value * 100).round() / 100;
+  }
 
   num _totalFor(CartState cart) {
     final discount = _discount.clamp(0, cart.subtotal);
@@ -139,6 +158,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    RegexInputFormatterMaxTwoDecimal(),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Diskon (Rp)',
@@ -171,6 +191,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      RegexInputFormatterMaxTwoDecimal(),
                     ],
                     decoration: const InputDecoration(
                       labelText: 'Uang Diterima (Rp)',

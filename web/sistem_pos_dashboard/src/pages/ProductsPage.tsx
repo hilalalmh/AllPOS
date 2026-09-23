@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -12,6 +13,7 @@ import {
   Modal,
   Spinner,
 } from "../components/ui";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { fetchCategories } from "../services/categories";
 import {
   createProduct,
@@ -41,8 +43,11 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const debouncedQ = useDebouncedValue(q);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const seqRef = useRef(0);
 
   const [editId, setEditId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -52,23 +57,33 @@ export default function ProductsPage() {
   const [confirmDelete, setConfirmDelete] = useState<Product | null>(null);
 
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await fetchProducts({
-        q: q || undefined,
+        q: debouncedQ || undefined,
+        include_inactive: includeInactive || undefined,
         page,
         page_size: PAGE_SIZE,
       });
-      setProducts(res.items);
-      setTotal(res.total);
+      if (seq === seqRef.current) {
+        setProducts(res.items);
+        setTotal(res.total);
+      }
     } catch (err) {
-      console.error(err);
-      setError("Gagal memuat produk.");
+      if (seq === seqRef.current) {
+        console.error(err);
+        setError("Gagal memuat produk.");
+      }
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current) setLoading(false);
     }
-  }, [q, page]);
+  }, [debouncedQ, page, includeInactive]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, includeInactive]);
 
   useEffect(() => {
     void load();
@@ -165,6 +180,14 @@ export default function ProductsPage() {
             placeholder="Cari produk..."
             className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           />
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={includeInactive}
+              onChange={(e) => setIncludeInactive(e.target.checked)}
+            />
+            Tampilkan nonaktif
+          </label>
           <button
             onClick={openCreate}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"

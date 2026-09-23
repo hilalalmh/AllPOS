@@ -8,7 +8,9 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname?: string } } | null)?.from
-    ?.pathname ?? "/";
+    ?.pathname;
+  const homePath = () =>
+    useAuthStore.getState().user?.role === "OWNER" ? "/" : "/pos";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +23,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
-      navigate(from, { replace: true });
+      navigate(from ?? homePath(), { replace: true });
     } catch (err) {
       setError("Login gagal. Periksa username dan password.");
       console.error(err);
@@ -80,10 +82,6 @@ export default function LoginPage() {
             {loading ? "Masuk..." : "Masuk"}
           </button>
         </form>
-
-        <p className="mt-6 text-xs text-gray-400">
-          Akun dev: owner/admin123 (OWNER), kasir1/kasir123.
-        </p>
       </div>
     </div>
   );

@@ -127,7 +127,7 @@ Praktik baik:
 | Cek | Perintah | Harapan |
 |-----|----------|---------|
 | Backend hidup | `Invoke-RestMethod http://localhost:8000/api/v1/health` | `status=ok`, `database=ok` |
-| Backend test | `cd backend && .\.venv\Scripts\python.exe -m pytest tests -q` | semua pass (saat ini 96) |
+| Backend test | `cd backend && .\.venv\Scripts\python.exe -m pytest tests -q` | semua pass (saat ini 100) |
 | Web build | `cd web/sistem_pos_dashboard && npm run lint && npm run build` | sukses |
 | Flutter analyze | `cd mobile/sistem_pos && flutter analyze` | No issues |
 | Flutter test | `flutter test` | pass |

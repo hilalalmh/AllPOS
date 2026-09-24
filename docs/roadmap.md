@@ -82,7 +82,7 @@ Status fase mengikuti roadmap master (urut, tidak melompat; tiap fase selesai = 
 - Profil toko (nama & alamat di struk dikonfigurasi dari dashboard) **DONE**:
   - Backend: model `store_profile` singleton id=1, `GET` (auth) / `PUT` (OWNER) `/api/v1/store-profile`; migrasi alembic `a1b2c3d4e5f6`; test **56 passed** (7 store profile).
   - Web: `StoreProfilePage.tsx` + zustand store; struk POS dinamis; `npm run lint`/`build` sukses.
-  - Mobile: model + repo + cache `SessionStore` + `StoreProfileNotifier` (load saat login) → `ReceiptService` dinamis; `flutter analyze` clean, `flutter test` **24 passed** (4 store profile), `flutter build apk --debug` sukses.
+  - Mobile: model + repo + cache `SessionStore` + `StoreProfileNotifier` (load saat login) → `ReceiptService` dinamis; `flutter analyze` clean, `flutter test` **26 passed** (4 store profile), `flutter build apk --debug` sukses.
   - Live E2E web: GET → PUT ("Aroma Kopi Nusantara") → GET ulang persist. Cetak fisik tetap perlu verifikasi manual.
 - Skenario printer: Wi-Fi/network, logo, QR/barcode di struk.
 - Audit trail lengkap + export laporan (CSV/PDF) **DONE**:
@@ -99,10 +99,10 @@ Pengerasan keamanan di luar roadmap fitur, dikerjakan bertahap (semua teruji):
 - **Ronde 2** (`b5451e0`): refresh path mobile, `local_ref` stabil pada reset line offline, `ENVIRONMENT` fail-closed, anti username-enumeration (dummy bcrypt), validasi upload **magic bytes**, web logout race & retry (single-flight refresh).
 - **Ronde 3** (`4ac4405`): perbaikan duplikasi checkout offline (notifier & `PopScope`), filter sinkronisasi per-kasir, endpoint `/api/v1/auth/*` bebas dari logout-401, throttle login adil (hanya kegagalan + eviction), **rotasi refresh atomik** + pencabutan semua saat ganti password, kunci baris owner sebelum mutasi role/is_active, `create_product` membersihkan file bila gagal, dedup `local_ref` global, guard path traversal hapus gambar, refresh web tanpa logout paksa + guard `/` per role + clamp diskon/uang dibayar + pesan error login spesifik.
 - Migrasi baru pada ronde audit: `b7c8d9e0a1b2` (transactions.local_ref), `d4f5c6b7e809` (refresh_tokens).
-- Test terkini: pytest **96 passed**; mobile `flutter test` **24 passed**; web lint + build sukses. Detail kontrol di `docs/arsitektur.md` → Keamanan.
+- Test terkini: pytest **100 passed**; mobile `flutter test` **26 passed**; web lint + build sukses. Detail kontrol di `docs/arsitektur.md` → Keamanan.
 
 ## Catatan Roadmap
 
 - Setiap features wajib diuji (pytest backend, widget test Flutter, uji manual via live check) sebelum dinyatakan selesai.
 - Jangan meng-claim sukses tanpa verifikasi aktual.
-- Kondisi test **terkini** (pembaruan dari angka historis per fase): backend **96 passed** di `backend/` via `.\.venv\Scripts\python.exe -m pytest -q`, mobile **24 passed** via `flutter test`. Angka per-fase di atas adalah kondisi saat fase itu ditutup.
+- Kondisi test **terkini** (pembaruan dari angka historis per fase): backend **100 passed** di `backend/` via `.\.venv\Scripts\python.exe -m pytest -q`, mobile **26 passed** via `flutter test`. Angka per-fase di atas adalah kondisi saat fase itu ditutup.

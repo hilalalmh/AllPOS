@@ -124,8 +124,8 @@ Printer gagal / putus **tidak** membatalkan transaksi — transaksi sudah tersim
 ## Konvensi Teknis
 
 - Migrasi DB: Alembic; setiap perubahan skema = revisi baru, lalu `python -m alembic upgrade head`.
-- Test backend: `pytest` (berjalan terhadap `sistem_pos_test`, seed owner/kasir/produk demo). Perintah: `.\.venv\Scripts\python.exe -m pytest -q` (dari `backend/`) — **96 test lulus**.
-- Test Flutter: `flutter test` — **24 test lulus** (struk, cart/transaction, offline sync/store, ApiClient, store profile).
+- Test backend: `pytest` (berjalan terhadap `sistem_pos_test`, seed owner/kasir/produk demo). Perintah: `.\.venv\Scripts\python.exe -m pytest -q` (dari `backend/`) — **100 test lulus**.
+- Test Flutter: `flutter test` — **26 test lulus** (struk, cart/transaction, offline sync/store, ApiClient, store profile).
 - Verifikasi tangan: `curl http://localhost:8000/api/v1/health` → `{"status":"ok","database":"ok"}`.
 - Skrip launcher Windows di `scripts/`: `start_dev.cmd`, `start_backend.cmd`, `start_web.cmd`, `restart_backend.cmd`, `run_backend.cmd`.
 

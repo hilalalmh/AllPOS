@@ -39,7 +39,7 @@ Detail di README.
 
 - Backend `http://localhost:8000` hidup (uvicorn --reload); web `http://localhost:5173` hidup (vite, proxy `/api`).
 - `curl http://localhost:8000/api/v1/health` → `{"status":"ok","database":"ok"}`.
-- `flutter analyze` → No issues (0). `flutter test` → **26 passed** (struk 4 + cart/transaction 7 + offline sync/store 7 + ApiClient 2 + store profile 4 + printer bluetooth 2).
+- `flutter analyze` → No issues (0). `flutter test` → **27 passed** (struk 4 + cart/transaction 7 + offline sync/store 7 + ApiClient 2 + store profile 4 + printer bluetooth 2 + QR/barcode struk 1).
 - `pytest` (backend) → **100 passed** — perintah: `cd backend` lalu `.\\.venv\\Scripts\\python.exe -m pytest -q` (bukan `python` polos; gunakan venv project).
 - `npm run lint` & `npm run build` (web) → sukses.
 - `dart run tool/check_api.dart` (dari `mobile/sistem_pos`) → health 200, login 200, products 200.
@@ -100,7 +100,7 @@ AllPOS/
 
 ## Status Fase
 
-Lihat `docs/roadmap.md`. Yang sudah selesai: PHASE 1–6, **PHASE 7** (cart+checkout+payment success+cetak struk, offline SQLite queue+sync, base URL via `--dart-define`, idempoten `local_ref`), **PHASE 8 (sebagian)** (store profile backend+web+mobile, audit trail + export laporan CSV/PDF), dan **Audit Keamanan Ronde 1–3** (commit `b5451e0`, `4ac4405`). Tersisa: verifikasi manual perangkat Android + printer fisik, barcode/QR & logo struk, deploy produksi, build APK release.
+Lihat `docs/roadmap.md`. Yang sudah selesai: PHASE 1–6, **PHASE 7** (cart+checkout+payment success+cetak struk, offline SQLite queue+sync, base URL via `--dart-define`, idempoten `local_ref`), **PHASE 8 (sebagian)** (store profile backend+web+mobile, audit trail + export laporan CSV/PDF), dan **Audit Keamanan Ronde 1–3** (commit `b5451e0`, `4ac4405`). Tersisa: verifikasi manual perangkat Android + printer fisik, logo struk & printer Wi-Fi/network, deploy produksi, build APK release.
 
 ## Todo Terbuka / Catatan Kecil
 

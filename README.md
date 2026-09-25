@@ -300,5 +300,5 @@ Pengerasan keamanan dilakukan bertahap dalam 3 ronde audit (semua teruji — lih
 |----------|----------|-------|
 | Backend | `.\\.venv\\Scripts\\python.exe -m pytest -q` (dari `backend/`) | **100 passed** |
 | Web | `npm run lint` + `npm run build` | bersih & sukses |
-| Mobile | `flutter analyze` + `flutter test` | clean & **26 passed** |
+| Mobile | `flutter analyze` + `flutter test` | clean & **27 passed** |
 | Mobile | `flutter build apk --debug` | sukses |

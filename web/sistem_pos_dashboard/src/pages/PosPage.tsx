@@ -15,6 +15,8 @@ import type {
 } from "../types";
 import { formatDateTime, formatMoney, formatRupiah } from "../utils/format";
 import { randomUuid } from "../utils/uuid";
+import { QRCodeSVG } from "qrcode.react";
+import Barcode from "react-barcode";
 
 interface CartLine {
   product: Product;
@@ -480,6 +482,12 @@ export function ReceiptTicket({
         {formatMoney(tx.paid_amount)}
       </p>
       <p>Kembalian: {formatMoney(tx.change_amount)}</p>
+      <div className="my-1 border-t border-dashed" />
+      <div className="flex flex-col items-center gap-1 py-1">
+        <QRCodeSVG value={tx.invoice_number} size={96} />
+        <Barcode value={tx.invoice_number} format="CODE128" width={1.2} height={40} displayValue={false} />
+        <p className="text-center">{tx.invoice_number}</p>
+      </div>
       <div className="my-1 border-t border-dashed" />
       <p className="text-center">{profile?.footer || "Terima kasih!"}</p>
     </div>

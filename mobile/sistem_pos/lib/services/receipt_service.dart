@@ -94,6 +94,23 @@ class ReceiptService {
     text(pair(_paymentLabel(receipt.paymentMethod), _money(receipt.paidAmount)));
     text(pair('Kembalian', _money(receipt.changeAmount)));
     hr();
+    lines.add(
+      bt_model.LineText(
+        type: bt_model.LineText.TYPE_QRCODE,
+        content: receipt.invoiceNumber,
+        align: bt_model.LineText.ALIGN_CENTER,
+        linefeed: 1,
+      ),
+    );
+    lines.add(
+      bt_model.LineText(
+        type: bt_model.LineText.TYPE_BARCODE,
+        content: receipt.invoiceNumber,
+        align: bt_model.LineText.ALIGN_CENTER,
+        linefeed: 1,
+      ),
+    );
+    hr();
     text(store.footer, align: bt_model.LineText.ALIGN_CENTER, linefeed: 3);
 
     return lines;

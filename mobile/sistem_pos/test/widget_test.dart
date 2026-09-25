@@ -103,4 +103,33 @@ void main() {
     expect(contents, contains('QRIS'));
     expect(contents, contains('Kembalian'));
   });
+
+  test('struk memuat QR dan barcode nomor invoice', () {
+    final service = ReceiptService(
+      store: const StoreInfo(name: 'Aroma Kopi Nusantara'),
+    );
+    final lines = service.buildLines(
+      ReceiptData(
+        invoiceNumber: 'POS-20260922-0001',
+        cashierName: 'kasir1',
+        items: const [],
+        subtotal: 0,
+        discount: 0,
+        total: 0,
+        paidAmount: 0,
+        changeAmount: 0,
+        paymentMethod: 'CASH',
+        createdAt: '',
+      ),
+      PaperSize.mm58,
+    );
+    final qr = lines.where(
+      (l) => l.type == 'qrcode' && (l.content ?? '').contains('POS-20260922-0001'),
+    );
+    final barcode = lines.where(
+      (l) => l.type == 'barcode' && (l.content ?? '').contains('POS-20260922-0001'),
+    );
+    expect(qr, isNotEmpty);
+    expect(barcode, isNotEmpty);
+  });
 }
